@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon 自動入札エンジン - 経営層向け説明資料</title>
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'Meiryo', sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .slide {
+            width: 297mm;
+            height: 210mm;
+            background: white;
+            margin: 20px auto;
+            padding: 40px 50px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            page-break-after: always;
+            position: relative;
+            overflow: hidden;
+        }
+        .slide:last-child {
+            page-break-after: avoid;
+        }
+
+        /* Header styles */
+        .slide-header {
+            border-bottom: 4px solid #FF9900;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+        .slide-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #232F3E;
+        }
+        .slide-subtitle {
+            font-size: 18px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* Title slide */
+        .title-slide {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: linear-gradient(135deg, #232F3E 0%, #37475A 100%);
+            color: white;
+        }
+        .title-slide .main-title {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        .title-slide .amazon-accent {
+            color: #FF9900;
+        }
+        .title-slide .tagline {
+            font-size: 24px;
+            opacity: 0.9;
+            margin-bottom: 40px;
+        }
+        .title-slide .date {
+            font-size: 18px;
+            opacity: 0.7;
+            position: absolute;
+            bottom: 40px;
+        }
+
+        /* Content styles */
+        .content {
+            display: flex;
+            gap: 40px;
+            height: calc(100% - 80px);
+        }
+        .content-full {
+            width: 100%;
+        }
+        .content-half {
+            width: 50%;
+        }
+
+        /* Box styles */
+        .info-box {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 5px solid #FF9900;
+        }
+        .info-box h3 {
+            color: #232F3E;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        .info-box p {
+            font-size: 16px;
+            color: #555;
+        }
+
+        /* Metric cards */
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #232F3E, #37475A);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .metric-card .value {
+            font-size: 42px;
+            font-weight: 700;
+            color: #FF9900;
+        }
+        .metric-card .label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        /* Flow diagram */
+        .flow-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 30px 0;
+        }
+        .flow-box {
+            background: #232F3E;
+            color: white;
+            padding: 20px 25px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 140px;
+        }
+        .flow-box.highlight {
+            background: #FF9900;
+            color: #232F3E;
+            font-weight: 700;
+        }
+        .flow-arrow {
+            font-size: 30px;
+            color: #FF9900;
+        }
+
+        /* Table styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #232F3E;
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .action-up {
+            color: #28a745;
+            font-weight: 700;
+        }
+        .action-down {
+            color: #dc3545;
+            font-weight: 700;
+        }
+        .action-keep {
+            color: #6c757d;
+            font-weight: 700;
+        }
+
+        /* Algorithm visualization */
+        .algorithm-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .algo-step {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .step-number {
+            width: 50px;
+            height: 50px;
+            background: #FF9900;
+            color: #232F3E;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .step-content {
+            flex: 1;
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 8px;
+        }
+        .step-content h4 {
+            color: #232F3E;
+            margin-bottom: 5px;
+        }
+
+        /* Coefficient visualization */
+        .coeff-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .coeff-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid #e0e0e0;
+        }
+        .coeff-item .name {
+            font-weight: 700;
+            color: #232F3E;
+            font-size: 14px;
+        }
+        .coeff-item .range {
+            color: #FF9900;
+            font-size: 18px;
+            font-weight: 700;
+            margin: 8px 0;
+        }
+        .coeff-item .desc {
+            font-size: 11px;
+            color: #666;
+        }
+
+        /* Formula box */
+        .formula-box {
+            background: #232F3E;
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .formula-box .formula {
+            font-size: 18px;
+            font-family: 'Consolas', monospace;
+        }
+        .formula-box .formula .orange {
+            color: #FF9900;
+        }
+
+        /* Phase timeline */
+        .timeline {
+            display: flex;
+            margin: 30px 0;
+            position: relative;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 25px;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: #ddd;
+        }
+        .timeline-item {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+        .timeline-dot {
+            width: 50px;
+            height: 50px;
+            background: #FF9900;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #232F3E;
+            font-weight: 700;
+            font-size: 12px;
+            position: relative;
+            z-index: 1;
+        }
+        .timeline-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #232F3E;
+        }
+        .timeline-desc {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* Benefits */
+        .benefit-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .benefit-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .benefit-icon {
+            width: 50px;
+            height: 50px;
+            background: #FF9900;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        .benefit-text h4 {
+            color: #232F3E;
+            margin-bottom: 5px;
+        }
+        .benefit-text p {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Footer */
+        .slide-footer {
+            position: absolute;
+            bottom: 20px;
+            left: 50px;
+            right: 50px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* Mode comparison */
+        .mode-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        .mode-box {
+            padding: 25px;
+            border-radius: 12px;
+        }
+        .mode-box.normal {
+            background: #e8f4f8;
+            border: 3px solid #17a2b8;
+        }
+        .mode-box.smode {
+            background: #fff3e0;
+            border: 3px solid #FF9900;
+        }
+        .mode-box h3 {
+            font-size: 22px;
+            margin-bottom: 15px;
+        }
+        .mode-box ul {
+            list-style: none;
+            padding: 0;
+        }
+        .mode-box li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            font-size: 15px;
+        }
+        .mode-box li:last-child {
+            border-bottom: none;
+        }
+
+        /* Architecture diagram */
+        .arch-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .arch-box {
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .arch-box.api {
+            background: #232F3E;
+            color: white;
+        }
+        .arch-box.engine {
+            background: #FF9900;
+            color: #232F3E;
+        }
+        .arch-box.data {
+            background: #4285f4;
+            color: white;
+        }
+        .arch-arrow {
+            font-size: 24px;
+            color: #666;
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+            }
+            .slide {
+                margin: 0;
+                box-shadow: none;
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Slide 1: Title -->
+    <div class="slide title-slide">
+        <div class="main-title">
+            <span class="amazon-accent">Amazon</span> 自動入札エンジン
+        </div>
+        <div class="tagline">AI駆動型 広告入札最適化システム</div>
+        <div style="display: flex; gap: 40px; margin-top: 20px;">
+            <div class="metric-card" style="background: rgba(255,255,255,0.1);">
+                <div class="value">3時間</div>
+                <div class="label">ごとに自動最適化</div>
+            </div>
+            <div class="metric-card" style="background: rgba(255,255,255,0.1);">
+                <div class="value">1500+</div>
+                <div class="label">キーワードを同時処理</div>
+            </div>
+            <div class="metric-card" style="background: rgba(255,255,255,0.1);">
+                <div class="value">100%</div>
+                <div class="label">自動化率</div>
+            </div>
+        </div>
+        <div class="date">2024年 経営層向け説明資料</div>
+    </div>
+
+    <!-- Slide 2: Executive Summary -->
+    <div class="slide">
+        <div class="slide-header">
+            <div class="slide-title">エグゼクティブサマリー</div>
+            <div class="slide-subtitle">本システムの概要と価値提案</div>
+        </div>
+
+        <div class="info-box">
+            <h3>このツールは何をするのか？</h3>
+            <p>Amazon広告のキーワード入札価格を、パフォーマンスデータに基づいて<strong>3時間ごとに自動最適化</strong>するシステムです。
+            売上最大化とコスト効率化を両立し、手動作業を完全に排除します。</p>
+        </div>
+
+        <div class="metric-grid">
+            <div class="metric-card">
+                <div class="value">15-30%</div>
+                <div class="label">セール期間中の売上向上</div>
+            </div>
+            <div class="metric-card">
+                <div class="value">10-20%</div>
+                <div class="label">ACOS（広告費売上比率）削減</div>
+            </div>
+            <div class="metric-card">
+                <div class="value">0時間</div>
+                <div class="label">手動入札調整の工数</div>
+            </div>
+        </div>
+
+        <div class="benefit-grid" style="margin-top: 30px;">
+            <div class="benefit-item">
+                <div class="benefit-icon">📊</div>
+                <div class="benefit-text">
+                    <h4>データ駆動型意思決定</h4>
+                    <p>14以上の指標を分析し、最適な入札額を算出</p>
+                </div>
+            </div>
+            <div class="benefit-item">
+                <div class="benefit-icon">🛡️</div>
+                <div class="benefit-text">
+                    <h4>リスク管理機能</h4>
+                    <p>損失防止のための自動停止機能を搭載</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide-footer">
+            <span>Amazon 自動入札エンジン</span>
+            <span>2 / 10</span>
+        </div>
+    </div>
+
+    <!-- Slide 3: System Overview -->
+    <div class="slide">
+        <div class="slide-header">
+            <div class="slide-title">システム全体像</div>
+            <div class="slide-subtitle">データの流れと処理フロー</div>
+        </div>
+
+        <div class="flow-container">
+            <div class="flow-box">
+                <div style="font-size: 24px; margin-bottom: 5px;">📥</div>
+                <div>Amazon Ads API</div>
+                <div style="font-size: 12px; opacity: 0.8;">データ取得</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box highlight">
+                <div style="font-size: 24px; margin-bottom: 5px;">🧠</div>
+                <div>入札エンジン</div>
+                <div style="font-size: 12px;">最適化処理</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">
+                <div style="font-size: 24px; margin-bottom: 5px;">📊</div>
+                <div>BigQuery</div>
+                <div style="font-size: 12px; opacity: 0.8;">ログ保存</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">
+                <div style="font-size: 24px; margin-bottom: 5px;">📤</div>
+                <div>入札推奨</div>
+                <div style="font-size: 12px; opacity: 0.8;">結果出力</div>
+            </div>
+        </div>
+
+        <div class="algorithm-flow" style="margin-top: 30px;">
+            <div class="algo-step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h4>データ収集</h4>
+                    <p>Amazon Ads APIから1500+キーワードのパフォーマンスデータを取得</p>
+                </div>
+            </div>
+            <div class="algo-step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h4>アクション判定</h4>
+                    <p>CVR、ACOS、ランキング等を分析し、6種類のアクションから最適なものを決定</p>
+                </div>
+            </div>
+            <div class="algo-step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h4>係数計算</h4>
+                    <p>7つの調整係数を掛け合わせ、最終的な入札変更率を算出</p>
+                </div>
+            </div>
+            <div class="algo-step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h4>結果出力</h4>
+                    <p>推奨入札額と判断理由を出力し、BigQueryに記録</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide-footer">
+            <span>Amazon 自動入札エンジン</span>
+            <span>3 / 10</span>
+        </div>
+    </div>
+
+    <!-- Slide 4: Action Logic -->
+    <div class="slide">
+        <div class="slide-header">
+            <div class="slide-title">アクション判定ロジック</div>
+            <div class="slide-subtitle">パフォーマンスに基づく6段階の意思決定</div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 15%;">アクション</th>
+                    <th style="width: 45%;">判定条件</th>
+                    <th style="width: 20%;">入札変更</th>
+                    <th style="width: 20%;">シナリオ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="action-up">STRONG_UP</td>
+                    <td>CVR +30%以上向上、ACOS目標以下</td>
+                    <td class="action-up">+20〜50%</td>
+                    <td>絶好調</td>
+                </tr>
+                <tr>
+                    <td class="action-up">MILD_UP</td>
+                    <td>CVR改善傾向、ACOS許容範囲内</td>
+                    <td class="action-up">+5〜25%</td>
+                    <td>好調</td>
+                </tr>
+                <tr>
+                    <td class="action-keep">KEEP</td>
+                    <td>パフォーマンス安定、データ不足</td>
+                    <td class="action-keep">±0%</td>
+                    <td>様子見</td>
+                </tr>
+                <tr>
+                    <td class="action-down">MILD_DOWN</td>
+                    <td>CVR微減、ACOS上昇傾向</td>
+                    <td class="action-down">-5〜35%</td>
+                    <td>要注意</td>
+                </tr>
+                <tr>
+                    <td class="action-down">STRONG_DOWN</td>
+                    <td>CVR -20%以上低下、ACOS目標×1.5超</td>
+                    <td class="action-down">-20〜70%</td>
+                    <td>不調</td>
+                </tr>
+                <tr>
+                    <td style="color: #dc3545; font-weight: 700;">STOP</td>
+                    <td>ACOS目標×3.0超（致命的赤字）</td>
+                    <td style="color: #dc3545; font-weight: 700;">停止</td>
+                    <td>緊急停止</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px;">
+            <div class="info-box" style="border-left-color: #28a745;">
+                <h3>📈 アップの判断基準</h3>
+                <p><strong>CVR（転換率）向上：</strong>商品の魅力度上昇<br>
+                <strong>ACOS健全：</strong>広告効率が良好<br>
+                <strong>ランク改善余地：</strong>競争力強化の機会</p>
+            </div>
+            <div class="info-box" style="border-left-color: #dc3545;">
+                <h3>📉 ダウンの判断基準</h3>
+                <p><strong>CVR低下：</strong>需要減少のサイン<br>
+                <strong>ACOS悪化：</strong>広告費の無駄遣い<br>
+                <strong>競合優位：</strong>撤退も戦略の一つ</p>
+            </div>
+        </div>
+
+        <div class="slide-footer">
+            <span>Amazon 自動入札エンジン</span>
+            <span>4 / 10</span>
+        </div>
+    </div>
+
+    <!-- Slide 5: Coefficients -->
+    <div class="slide">
+        <div class="slide-header">
+            <div class="slide-title">7つの調整係数</div>
+            <div class="slide-subtitle">多角的な分析による精密な入札調整</div>
+        </div>
+
+        <div class="coeff-grid">
+            <div class="coeff-item">
+                <div class="name">フェーズ係数</div>
+                <div class="range">0.0 〜 1.8</div>
+                <div class="desc">セールの段階に応じた強弱調整</div>
+            </div>
+            <div class="coeff-item">
+                <div class="name">CVR係数</div>
+                <div class="range">0.7 〜 1.5</div>
+                <div class="desc">転換率の変化に応じた調整</div>
+            </div>
+            <div class="coeff-item">
+                <div class="name">ランク係数</div>
+                <div class="range">1.0 〜 1.3</div>
+                <div class="desc">目標順位との差に基づく調整</div>
+            </div>
+            <div class="coeff-item">
+                <div class="name">競合係数</div>
+                <div class="range">1.0 〜 1.25</div>
+                <div class="desc">競合の入札動向への対応</div>
+            </div>
+            <div class="coeff-item">
+                <div class="name">ブランド係数</div>
+                <div class="range">0.8 〜 1.2</div>
+                <div class="desc">自社/競合ブランドの戦略差</div>
+            </div>
+            <div class="coeff-item">
+                <div class="name">統計係数</div>
+                <div class="range">0.5 〜 1.1</div>
+                <div class="desc">データ量・リスクに応じた信頼度調整</div>
+            </div>
+            <div class="coeff-item">
+                <div class="name">TOS係数</div>
+                <div class="range">1.0 〜 1.8</div>
+                <div class="desc">検索上位表示への積極投資</div>
+            </div>
+        </div>
+
+        <div class="formula-box">
+            <div style="font-size: 14px; margin-bottom: 10px; opacity: 0.8;">最終変更率の計算式</div>
+            <div class="formula">
+                <span class="orange">最終変更率</span> = 基本変更率 × フェーズ × CVR × ランク × 競合 × ブランド × 統計 × TOS
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h3>💡 計算例</h3>
+            <p>基本変更率 25% × フェーズ 1.5 × CVR 1.2 × ランク 1.2 × 競合 1.1 × ブランド 1.0 × 統計 1.1 × TOS 1.3 = <strong style="color: #FF9900;">67%増</strong></p>
+        </div>
+
+        <div class="slide-footer">
+            <span>Amazon 自動入札エンジン</span>
+            <span>5 / 10</span>
+        </div>
+    </div>
+
+    <!-- Slide 6: Dual Mode -->
+    <div class="slide">
+        <div class="slide-header">
+            <div class="slide-title">2つの動作モード</div>
+            <div class="slide-subtitle">通常運用とセール期間で最適な戦略を自動切替</div>
+        </div>
+
+        <div class="mode-comparison">
+            <div class="mode-box normal">
+                <h3 style="color: #17a2b8;">🔵 NORMALモード</h3>
+                <ul>
+                    <li><strong>目的：</strong>安定した利益確保</li>
+                    <li><strong>入札上限：</strong>最大 +60%</li>
+                    <li><strong>戦略：</strong>保守的・効率重視</li>
+                    <li><strong>適用：</strong>通常営業日</li>
+                    <li><strong>リスク許容度：</strong>低</li>
+                </ul>
+            </div>
+            <div class="mode-box smode">
+                <h3 style="color: #FF9900;">🟠 S_MODE（セールモード）</h3>
+                <ul>
+                    <li><strong>目的：</strong>売上最大化</li>
+                    <li><strong>入札上限：</strong>最大 +150〜200%</li>
+                    <li><strong>戦略：</strong>積極的・シェア拡大</li>
+                    <li><strong>適用：</strong>セール・プロモーション期間</li>
+                    <li><strong>リスク許容度：</strong>高</li>
+                </ul>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px;">
+            <h3 style="color: #232F3E; margin-bottom: 15px;">セールフェーズ別の自動調整</h3>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-dot">PRE1</div>
+                    <div class="timeline-label">3時間前</div>
+                    <div class="timeline-desc">準備開始<br>係数 1.2</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-dot">PRE2</div>
+                    <div class="timeline-label">1時間前</div>
+                    <div class="timeline-desc">全力準備<br>係数 1.5</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-dot" style="background: #dc3545; color: white;">FREEZE</div>
+                    <div class="timeline-label">開始直後</div>
+                    <div class="timeline-desc">様子見<br>係数 0.0</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-dot">NORMAL</div>
+                    <div class="timeline-label">中盤</div>
+                    <div class="timeline-desc">積極獲得<br>係数 1.3</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-dot" style="background: #28a745;">FINAL</div>
+                    <div class="timeline-label">終盤</div>
+                    <div class="timeline-desc">最大攻勢<br>係数 1.8</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide-footer">
+            <span>Amazon 自動入札エンジン</span>
+            <span>6 / 10</span>
+        </div>
+    </div>
+
+    <!-- Slide 7: Safety Mechanisms -->
+    <div class="slide">
+        <div class="slide-header">
+            <div class="slide-title">安全機構とリスク管理</div>
+            <div class="slide-subtitle">損失を防ぐ多層的な保護システム</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+            <div>
+                <h3 style="color: #232F3E; margin-bottom: 15px;">🛡️ ACOS安全装置</h3>
+                <div class="info-box" style="border-left-color: #ffc107;">
+                    <h3>ソフトストップ（警告）</h3>
+                    <p>ACOS ≧ 目標値 × <strong>1.5倍</strong><br>
+                    → STRONG_DOWN（大幅入札減）</p>
+                </div>
+                <div class="info-box" style="border-left-color: #dc3545;">
+                    <h3>ハードストップ（緊急）</h3>
+                    <p>ACOS ≧ 目標値 × <strong>3.0倍</strong><br>
+                    → STOP（広告一時停止）</p>
+                </div>
+            </div>
+
+            <div>
+                <h3 style="color: #232F3E; margin-bottom: 15px;">📊 入札上限制御</h3>
+                <div class="info-box">
+                    <h3>複数の上限チェック</h3>
+                    <p>
+                        ・現在入札 × 3.0 を超えない<br>
+                        ・競合CPC × 1.15 を超えない<br>
+                        ・ベースラインCPC × 2.5 を超えない<br>
+                        ・最低入札額 ¥10 を下回らない
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <h3 style="color: #232F3E; margin-bottom: 15px;">🏷️ ブランド保護機能</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                <div class="info-box" style="border-left-color: #28a745;">
+                    <h3>自社ブランドKW</h3>
+                    <p>絶対にSTOPしない<br>STRONG_DOWNを制限<br>ダウン時は係数0.8で抑制</p>
+                </div>
+                <div class="info-box" style="border-left-color: #17a2b8;">
+                    <h3>競合ブランドKW</h3>
+                    <p>慎重な入札増加<br>アップ時は係数0.9<br>ROI重視の保守的運用</p>
+                </div>
+                <div class="info-box" style="border-left-color: #6c757d;">
+                    <h3>一般キーワード</h3>
+                    <p>標準ルール適用<br>係数1.0<br>パフォーマンス重視</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide-footer">
+            <span>Amazon 自動入札エンジン</span>
+            <span>7 / 10</span>
+        </div>
+    </div>
+
+    <!-- Slide 8: TOS Strategy -->
+    <div class="slide">
+        <div class="slide-header">
+            <div class="slide-title">TOS（検索上位表示）戦略</div>
+            <div class="slide-subtitle">プレミアムポジション獲得のための積極投資</div>
+        </div>
+
+        <div class="info-box">
+            <h3>TOS（Top of Search）とは？</h3>
+            <p>検索結果ページの最上部に表示される広告枠。最も視認性が高く、クリック率・転換率ともに通常枠の<strong>1.5〜2倍</strong>を記録。
+            高コストだが、ブランド認知と売上に大きく貢献する戦略的ポジション。</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px;">
+            <div>
+                <h3 style="color: #232F3E; margin-bottom: 15px;">✅ TOS対象条件</h3>
+                <table style="font-size: 14px;">
+                    <tr>
+                        <th>条件</th>
+                        <th>閾値</th>
+                    </tr>
+                    <tr>
+                        <td>クリック数（3時間）</td>
+                        <td>40回以上</td>
+                    </tr>
+                    <tr>
+                        <td>優先度スコア</td>
+                        <td>0.8以上</td>
+                    </tr>
+                    <tr>
+                        <td>TOS価値スコア</td>
+                        <td>1.5以上</td>
+                    </tr>
+                    <tr>
+                        <td>リスクペナルティ</td>
+                        <td>0.3未満</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div>
+                <h3 style="color: #232F3E; margin-bottom: 15px;">🚀 TOS対象時の特典</h3>
+                <div class="metric-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="metric-card" style="padding: 15px;">
+                        <div class="value" style="font-size: 28px;">200%</div>
+                        <div class="label">最大入札増加率</div>
+                    </div>
+                    <div class="metric-card" style="padding: 15px;">
+                        <div class="value" style="font-size: 28px;">1.8x</div>
+                        <div class="label">TOS係数上限</div>
+                    </div>
+                </div>
+                <p style="margin-top: 15px; font-size: 14px; color: #666;">
+                    通常の150%上限を超え、最大200%までの入札増加が可能。
+                    高い投資対効果が見込めるキーワードのみに適用。
+                </p>
+            </div>
+        </div>
+
+        <div class="formula-box" style="margin-top: 30px;">
+            <div style="font-size: 14px; margin-bottom: 10px; opacity: 0.8;">TOS係数の計算</div>
+            <div class="formula">
+                <span class="orange">TOS係数</span> = 1.0 + (CTR倍率 × 0.2) + (CVR倍率 × 0.2) + (CPC差額 / 100 × 0.1)
+            </div>
+        </div>
+
+        <div class="slide-footer">
+            <span>Amazon 自動入札エンジン</span>
+            <span>8 / 10</span>
+        </div>
+    </div>
+
+    <!-- Slide 9: Transparency -->
+    <div class="slide">
+        <div class="slide-header">
+            <div class="slide-title">透明性と説明可能性</div>
+            <div class="slide-subtitle">すべての判断に理由を付与</div>
+        </div>
+
+        <div class="info-box">
+            <h3>なぜ透明性が重要か？</h3>
+            <p>AI・自動化システムへの信頼構築には、「なぜその判断をしたか」の説明が不可欠。
+            本システムは全ての推奨に対して<strong>3つの観点から理由を明示</strong>します。</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px;">
+            <div class="info-box" style="border-left-color: #17a2b8; height: 100%;">
+                <h3>📋 Facts（事実）</h3>
+                <p style="font-size: 14px;">現在の数値データ<br><br>
+                <em style="color: #666;">例：「CVR: 8.0%（基準: 6.0%、+33%）、ACOS: 15%（目標: 20%）」</em></p>
+            </div>
+            <div class="info-box" style="border-left-color: #FF9900; height: 100%;">
+                <h3>🧠 Logic（論理）</h3>
+                <p style="font-size: 14px;">判断の根拠<br><br>
+                <em style="color: #666;">例：「CVR向上 → ACOS良好 → TOS対象 → STRONG_UP」</em></p>
+            </div>
+            <div class="info-box" style="border-left-color: #28a745; height: 100%;">
+                <h3>📈 Impact（影響）</h3>
+                <p style="font-size: 14px;">期待される効果<br><br>
+                <em style="color: #666;">例：「入札: ¥150 → ¥225（+50%）、クリック増加を期待」</em></p>
+            </div>
+        </div>
+
+        <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; margin-top: 25px;">
+            <h3 style="color: #232F3E; margin-bottom: 15px;">📊 出力例（JSON）</h3>
+            <pre style="background: #232F3E; color: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 13px; overflow-x: auto;">
+{
+  "keyword_id": "kw001",
+  "action": "STRONG_UP",
+  "current_bid": 150,
+  "new_bid": 225,
+  "change_rate": 0.50,
+  "reason_facts": "CVR: 8.0% (基準: 6.0%, +33%), ACOS: 15% (目標: 20%)",
+  "reason_logic": "CVR向上 → ACOS良好 → TOS対象 → STRONG_UP",
+  "reason_impact": "入札: ¥150 → ¥225 (+50%), クリック増加を期待"
+}</pre>
+        </div>
+
+        <div class="slide-footer">
+            <span>Amazon 自動入札エンジン</span>
+            <span>9 / 10</span>
+        </div>
+    </div>
+
+    <!-- Slide 10: Summary -->
+    <div class="slide">
+        <div class="slide-header">
+            <div class="slide-title">まとめ</div>
+            <div class="slide-subtitle">Amazon自動入札エンジンの価値</div>
+        </div>
+
+        <div class="benefit-grid">
+            <div class="benefit-item">
+                <div class="benefit-icon">🎯</div>
+                <div class="benefit-text">
+                    <h4>精度の高い最適化</h4>
+                    <p>14以上の指標 × 7つの係数による多角的分析で、人間では不可能な精密さを実現</p>
+                </div>
+            </div>
+            <div class="benefit-item">
+                <div class="benefit-icon">⚡</div>
+                <div class="benefit-text">
+                    <h4>リアルタイム対応</h4>
+                    <p>3時間ごとの自動実行で、市場変化に即座に対応。セール期間も最適戦略を自動切替</p>
+                </div>
+            </div>
+            <div class="benefit-item">
+                <div class="benefit-icon">🛡️</div>
+                <div class="benefit-text">
+                    <h4>リスク管理</h4>
+                    <p>ACOS監視、入札上限、ブランド保護など多層的な安全機構で損失を防止</p>
+                </div>
+            </div>
+            <div class="benefit-item">
+                <div class="benefit-icon">📊</div>
+                <div class="benefit-text">
+                    <h4>完全な透明性</h4>
+                    <p>全ての判断に理由を付与。BigQueryへのログ保存で完全な監査証跡を確保</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: linear-gradient(135deg, #232F3E, #37475A); color: white; padding: 30px; border-radius: 12px; margin-top: 30px; text-align: center;">
+            <h3 style="color: #FF9900; font-size: 24px; margin-bottom: 15px;">期待される成果</h3>
+            <div style="display: flex; justify-content: space-around;">
+                <div>
+                    <div style="font-size: 36px; font-weight: 700; color: #FF9900;">15-30%</div>
+                    <div>セール期間売上向上</div>
+                </div>
+                <div>
+                    <div style="font-size: 36px; font-weight: 700; color: #FF9900;">10-20%</div>
+                    <div>ACOS削減</div>
+                </div>
+                <div>
+                    <div style="font-size: 36px; font-weight: 700; color: #FF9900;">100%</div>
+                    <div>作業自動化</div>
+                </div>
+                <div>
+                    <div style="font-size: 36px; font-weight: 700; color: #FF9900;">24/7</div>
+                    <div>継続的最適化</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slide-footer">
+            <span>Amazon 自動入札エンジン</span>
+            <span>10 / 10</span>
+        </div>
+    </div>
+
+</body>
+</html>

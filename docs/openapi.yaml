@@ -1,0 +1,956 @@
+openapi: 3.0.3
+info:
+  title: Amazon Bid Engine API
+  description: |
+    Amazon広告自動入札提案エンジンのREST API。
+
+    ## 認証
+    すべてのエンドポイント（/health を除く）では `X-API-Key` ヘッダーによる認証が必要です。
+
+    ## Retool統合
+    このAPIはRetool Cloudからの利用を想定しています。
+    - Base URL: Cloud Runのデプロイ先URL
+    - Authentication: Header Auth (`X-API-Key`)
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: https://your-service.a.run.app
+    description: Production (Cloud Run)
+  - url: http://localhost:8080
+    description: Local Development
+
+security:
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key for authentication
+
+  schemas:
+    # 共通レスポンス
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Error message"
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: 総件数
+        limit:
+          type: integer
+          description: 取得件数上限
+        offset:
+          type: integer
+          description: オフセット
+        hasMore:
+          type: boolean
+          description: 次のページがあるか
+
+    # ネガティブキーワード候補
+    NegativeKeywordSuggestion:
+      type: object
+      properties:
+        suggestion_id:
+          type: string
+          format: uuid
+          description: 候補ID
+        execution_id:
+          type: string
+          description: 実行ID
+        asin:
+          type: string
+          description: ASIN
+        query:
+          type: string
+          description: 検索クエリ
+        match_type:
+          type: string
+          enum: [AUTO, PHRASE, EXACT]
+          description: マッチタイプ
+        role:
+          type: string
+          enum: [GENERIC, BRAND_OWN, BRAND_CONQUEST, OTHER]
+          description: キーワードの役割
+        clicks_30d:
+          type: integer
+          description: 30日間クリック数
+        conversions_30d:
+          type: integer
+          description: 30日間コンバージョン数
+        cost_30d:
+          type: number
+          description: 30日間コスト
+        cpc_30d:
+          type: number
+          description: 30日間CPC
+        cvr_30d:
+          type: number
+          description: 30日間CVR
+        acos_30d:
+          type: number
+          description: 30日間ACOS
+        baseline_asin_cvr_30d:
+          type: number
+          description: ASINベースラインCVR
+        reason_codes:
+          type: array
+          items:
+            type: string
+          description: 理由コード
+        reason_detail:
+          type: string
+          description: 詳細理由
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, APPLIED]
+          description: ステータス
+        approved_at:
+          type: string
+          format: date-time
+          description: 承認日時
+        approved_by:
+          type: string
+          description: 承認者
+        rejected_at:
+          type: string
+          format: date-time
+          description: 却下日時
+        rejected_by:
+          type: string
+          description: 却下者
+        rejection_reason:
+          type: string
+          description: 却下理由
+        is_applied:
+          type: boolean
+          description: 適用済みか
+        applied_at:
+          type: string
+          format: date-time
+          description: 適用日時
+        lifecycle_state:
+          type: string
+          enum: [LAUNCH_HARD, LAUNCH_SOFT, GROW, HARVEST]
+          description: ライフサイクルステート
+        suggested_at:
+          type: string
+          format: date-time
+          description: 提案日時
+
+    NegativeSuggestionSummary:
+      type: object
+      properties:
+        PENDING:
+          $ref: '#/components/schemas/StatusSummary'
+        APPROVED:
+          $ref: '#/components/schemas/StatusSummary'
+        REJECTED:
+          $ref: '#/components/schemas/StatusSummary'
+        APPLIED:
+          $ref: '#/components/schemas/StatusSummary'
+
+    StatusSummary:
+      type: object
+      properties:
+        count:
+          type: integer
+        totalCost30d:
+          type: number
+        uniqueAsins:
+          type: integer
+
+    # AUTO→EXACT昇格候補
+    AutoExactSuggestion:
+      type: object
+      properties:
+        suggestion_id:
+          type: string
+          format: uuid
+          description: 候補ID
+        execution_id:
+          type: string
+          description: 実行ID
+        profile_id:
+          type: string
+          description: Amazon AdsプロファイルID
+        campaign_id_auto:
+          type: string
+          description: AUTOキャンペーンID
+        ad_group_id_auto:
+          type: string
+          description: AUTO広告グループID
+        campaign_id_manual_target:
+          type: string
+          description: ターゲットMANUALキャンペーンID
+        ad_group_id_manual_target:
+          type: string
+          description: ターゲットMANUAL広告グループID
+        asin:
+          type: string
+          description: ASIN
+        search_term:
+          type: string
+          description: 検索語句
+        intent_cluster_id:
+          type: string
+          description: インテントクラスタID
+        intent_cluster_label:
+          type: string
+          description: インテントクラスタラベル
+        match_type:
+          type: string
+          description: マッチタイプ
+        lookback_days:
+          type: integer
+          description: 参照期間（日）
+        impressions:
+          type: integer
+          description: インプレッション
+        clicks:
+          type: integer
+          description: クリック数
+        orders:
+          type: integer
+          description: 注文数
+        sales:
+          type: number
+          description: 売上
+        cost:
+          type: number
+          description: コスト
+        cvr:
+          type: number
+          description: CVR
+        acos:
+          type: number
+          description: ACOS
+        target_acos:
+          type: number
+          description: ターゲットACOS
+        score:
+          type: number
+          description: 優先度スコア
+        reason_codes:
+          type: array
+          items:
+            type: string
+          description: 理由コード
+        reason_detail:
+          type: string
+          description: 詳細理由
+        lifecycle_state:
+          type: string
+          enum: [LAUNCH_HARD, LAUNCH_SOFT, GROW, HARVEST]
+          description: ライフサイクルステート
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, APPLIED]
+          description: ステータス
+        approved_at:
+          type: string
+          format: date-time
+        approved_by:
+          type: string
+        rejected_at:
+          type: string
+          format: date-time
+        rejected_by:
+          type: string
+        rejection_reason:
+          type: string
+        is_applied:
+          type: boolean
+        applied_at:
+          type: string
+          format: date-time
+        suggested_at:
+          type: string
+          format: date-time
+
+    # 実行履歴
+    Execution:
+      type: object
+      properties:
+        execution_id:
+          type: string
+          description: 実行ID
+        execution_mode:
+          type: string
+          enum: [SHADOW, APPLY]
+          description: 実行モード
+        status:
+          type: string
+          enum: [RUNNING, SUCCESS, FAILED]
+          description: 実行ステータス
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        total_keywords:
+          type: integer
+        processed_keywords:
+          type: integer
+        recommended_changes:
+          type: integer
+
+paths:
+  # ヘルスチェック
+  /health:
+    get:
+      summary: ヘルスチェック
+      description: サービスの稼働状態を確認
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: 正常稼働
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  service:
+                    type: string
+                  checks:
+                    type: object
+                    properties:
+                      bigquery:
+                        type: string
+                        enum: [ok, failed]
+        '503':
+          description: サービス劣化状態
+
+  # ネガティブキーワード候補
+  /admin/negative-suggestions:
+    get:
+      summary: ネガティブキーワード候補一覧
+      description: ネガティブキーワード候補の一覧を取得
+      tags:
+        - Negative Keywords
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, REJECTED, APPLIED]
+          description: ステータスでフィルタ
+        - name: asin
+          in: query
+          schema:
+            type: string
+          description: ASINでフィルタ
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [GENERIC, BRAND_OWN, BRAND_CONQUEST, OTHER]
+          description: 役割でフィルタ
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+          description: 取得件数
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: オフセット
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      suggestions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/NegativeKeywordSuggestion'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+
+  /admin/negative-suggestions/summary:
+    get:
+      summary: ネガティブキーワード候補サマリー
+      description: ステータス別の集計を取得
+      tags:
+        - Negative Keywords
+      parameters:
+        - name: asin
+          in: query
+          schema:
+            type: string
+          description: ASINでフィルタ
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      summary:
+                        $ref: '#/components/schemas/NegativeSuggestionSummary'
+                      total:
+                        type: integer
+
+  /admin/negative-suggestions/approve:
+    post:
+      summary: ネガティブキーワード候補を承認
+      description: 指定した候補を承認（PENDING→APPROVED）
+      tags:
+        - Negative Keywords
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - suggestionIds
+                - approvedBy
+              properties:
+                suggestionIds:
+                  type: array
+                  items:
+                    type: string
+                  description: 承認する候補IDの配列
+                approvedBy:
+                  type: string
+                  description: 承認者名
+            example:
+              suggestionIds: ["uuid-1", "uuid-2"]
+              approvedBy: "admin@example.com"
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      requested:
+                        type: integer
+                      approved:
+                        type: integer
+                      message:
+                        type: string
+
+  /admin/negative-suggestions/reject:
+    post:
+      summary: ネガティブキーワード候補を却下
+      description: 指定した候補を却下（PENDING/APPROVED→REJECTED）
+      tags:
+        - Negative Keywords
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - suggestionIds
+                - rejectedBy
+              properties:
+                suggestionIds:
+                  type: array
+                  items:
+                    type: string
+                  description: 却下する候補IDの配列
+                rejectedBy:
+                  type: string
+                  description: 却下者名
+                reason:
+                  type: string
+                  description: 却下理由（任意）
+            example:
+              suggestionIds: ["uuid-1"]
+              rejectedBy: "admin@example.com"
+              reason: "ブランドキーワードのため除外"
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      requested:
+                        type: integer
+                      rejected:
+                        type: integer
+                      message:
+                        type: string
+
+  /admin/negative-suggestions/apply-queued:
+    post:
+      summary: 承認済み候補をAmazon Ads APIに適用
+      description: |
+        APPROVED状態の候補をAmazon Ads APIに適用し、ネガティブキーワードとして登録します。
+
+        **注意**: `NEGATIVE_APPLY_ENABLED=true` が設定されている必要があります。
+      tags:
+        - Negative Keywords
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dryRun:
+                  type: boolean
+                  default: false
+                  description: trueの場合、実際には適用せず対象件数のみ返す
+                maxItems:
+                  type: integer
+                  description: 一度に処理する最大件数
+                includeAutoApply:
+                  type: boolean
+                  default: false
+                  description: 高信頼度のPENDING候補も自動適用する
+            example:
+              dryRun: true
+              maxItems: 10
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      applyEnabled:
+                        type: boolean
+                      message:
+                        type: string
+                      approvedCount:
+                        type: integer
+                      wouldProcess:
+                        type: integer
+                      dryRun:
+                        type: boolean
+                      appliedCount:
+                        type: integer
+                      failedCount:
+                        type: integer
+                      appliedIds:
+                        type: array
+                        items:
+                          type: string
+                      errors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            suggestionId:
+                              type: string
+                            error:
+                              type: string
+
+  /admin/negative-suggestions/{suggestionId}:
+    get:
+      summary: ネガティブキーワード候補詳細
+      description: 指定した候補の詳細を取得
+      tags:
+        - Negative Keywords
+      parameters:
+        - name: suggestionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 候補ID
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/NegativeKeywordSuggestion'
+        '404':
+          description: 候補が見つからない
+
+  # AUTO→EXACT昇格候補
+  /admin/auto-exact-suggestions:
+    get:
+      summary: AUTO→EXACT昇格候補一覧
+      description: AUTO→EXACT昇格候補の一覧を取得
+      tags:
+        - AUTO to EXACT
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, REJECTED, APPLIED]
+          description: ステータスでフィルタ
+        - name: asin
+          in: query
+          schema:
+            type: string
+          description: ASINでフィルタ
+        - name: lifecycleState
+          in: query
+          schema:
+            type: string
+            enum: [LAUNCH_HARD, LAUNCH_SOFT, GROW, HARVEST]
+          description: ライフサイクルステートでフィルタ
+        - name: minScore
+          in: query
+          schema:
+            type: number
+          description: 最小スコアでフィルタ
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+          description: 取得件数
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: オフセット
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      suggestions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AutoExactSuggestion'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+
+  /admin/auto-exact-suggestions/summary:
+    get:
+      summary: AUTO→EXACT候補サマリー
+      description: ステータス別の集計を取得
+      tags:
+        - AUTO to EXACT
+      parameters:
+        - name: asin
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+
+  /admin/auto-exact-suggestions/top:
+    get:
+      summary: 高スコア候補Top N
+      description: 高スコアのPENDING候補を取得（クイックレビュー用）
+      tags:
+        - AUTO to EXACT
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: 取得件数
+        - name: asin
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+
+  /admin/auto-exact-suggestions/approve:
+    post:
+      summary: AUTO→EXACT候補を承認
+      description: 指定した候補を承認（PENDING→APPROVED）
+      tags:
+        - AUTO to EXACT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - suggestionIds
+                - approvedBy
+              properties:
+                suggestionIds:
+                  type: array
+                  items:
+                    type: string
+                approvedBy:
+                  type: string
+            example:
+              suggestionIds: ["uuid-1", "uuid-2"]
+              approvedBy: "admin@example.com"
+      responses:
+        '200':
+          description: 成功
+
+  /admin/auto-exact-suggestions/reject:
+    post:
+      summary: AUTO→EXACT候補を却下
+      tags:
+        - AUTO to EXACT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - suggestionIds
+                - rejectedBy
+              properties:
+                suggestionIds:
+                  type: array
+                  items:
+                    type: string
+                rejectedBy:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: 成功
+
+  /admin/auto-exact-suggestions/apply-queued:
+    post:
+      summary: 承認済み候補をAmazon Ads APIに適用
+      description: |
+        APPROVED状態の候補をAmazon Ads APIに適用します。
+
+        処理内容:
+        1. ターゲットMANUALキャンペーンにEXACTキーワードを作成
+        2. AUTOキャンペーンにネガティブEXACTを登録（カニバリゼーション防止）
+
+        **注意**: `AUTO_EXACT_APPLY_ENABLED=true` が設定されている必要があります。
+      tags:
+        - AUTO to EXACT
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dryRun:
+                  type: boolean
+                  default: false
+                maxItems:
+                  type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      applyEnabled:
+                        type: boolean
+                      message:
+                        type: string
+                      appliedCount:
+                        type: integer
+                      partialSuccessCount:
+                        type: integer
+                      failedCount:
+                        type: integer
+                      results:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            suggestionId:
+                              type: string
+                            searchTerm:
+                              type: string
+                            keywordCreated:
+                              type: boolean
+                            keywordId:
+                              type: string
+                            negativeCreated:
+                              type: boolean
+                            error:
+                              type: string
+
+  /admin/auto-exact-suggestions/{suggestionId}:
+    get:
+      summary: AUTO→EXACT候補詳細
+      tags:
+        - AUTO to EXACT
+      parameters:
+        - name: suggestionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+        '404':
+          description: 候補が見つからない
+
+  # 実行履歴
+  /admin/executions:
+    get:
+      summary: 実行履歴一覧
+      description: 入札エンジンの実行履歴を取得
+      tags:
+        - Executions
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [RUNNING, SUCCESS, FAILED]
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [SHADOW, APPLY]
+      responses:
+        '200':
+          description: 成功
+
+  /admin/executions/{executionId}/asin-summary:
+    get:
+      summary: 実行のASIN別サマリー
+      tags:
+        - Executions
+      parameters:
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+
+  /admin/executions/{executionId}/keyword-details:
+    get:
+      summary: 実行のキーワード詳細
+      tags:
+        - Executions
+      parameters:
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: asin
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: 成功
+
+tags:
+  - name: Health
+    description: ヘルスチェック
+  - name: Negative Keywords
+    description: ネガティブキーワード候補の管理
+  - name: AUTO to EXACT
+    description: AUTO→EXACT昇格候補の管理
+  - name: Executions
+    description: 実行履歴の参照
