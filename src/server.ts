@@ -36,6 +36,10 @@ import {
 import { configureNotifications } from "./utils/notification";
 import { registerAdmin } from "./admin/admin";
 
+// package.json からバージョン情報を取得
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const packageJson = require("../../package.json") as { version: string };
+
 // =============================================================================
 // サーバー起動関数
 // =============================================================================
@@ -218,110 +222,97 @@ async function startServer(): Promise<void> {
     });
   });
 
-  // ルートエンドポイント
+  // ルートエンドポイント - HTMLトップページ
   app.get("/", (req: Request, res: Response) => {
-    res.status(200).json({
-      service: "Amazon広告自動入札提案エンジン API",
-      version: "1.0.0",
-      endpoints: {
-        health: "GET /health",
-        recommend: "POST /recommend",
-        admin_panel: "GET /admin-panel (AdminJS管理画面)",
-        cron: {
-          run: "POST /cron/run",
-          run_normal: "POST /cron/run-normal",
-          run_smode: "POST /cron/run-smode",
-          recompute_guardrails: "POST /cron/recompute-guardrails",
-          run_auto_exact_promotion:
-            "POST /cron/run-auto-exact-promotion (SHADOW mode only)",
-          run_auto_exact_shadow:
-            "POST /cron/run-auto-exact-shadow (BigQuery保存付き、環境変数AUTO_EXACT_SHADOW_PROFILE_IDで対象指定)",
-        },
-        escore: {
-          optimize: "POST /escore/optimize",
-          stats: "GET /escore/stats",
-          health: "GET /escore/health",
-          report: "GET /escore/report",
-        },
-        jungle_scout: {
-          sync: "POST /jungle-scout/sync",
-          analyze: "POST /jungle-scout/analyze",
-          keywords: "GET /jungle-scout/keywords/:asin",
-          sov: "GET /jungle-scout/sov/:asin",
-          strategy: "GET /jungle-scout/strategy/:asin",
-          trending: "GET /jungle-scout/trending",
-        },
-        unified: {
-          calculate: "POST /unified/calculate",
-          product: "POST /unified/product",
-          strategy: "GET /unified/strategy/:asin",
-          summary: "GET /unified/summary/:asin",
-        },
-        seo_investment: {
-          evaluate: "POST /seo-investment/evaluate",
-          start: "POST /seo-investment/start",
-          update: "POST /seo-investment/update",
-          status: "GET /seo-investment/status/:asin",
-          summary: "GET /seo-investment/summary/:asin",
-          acos_limit: "GET /seo-investment/acos-limit",
-          investment_limit: "GET /seo-investment/investment-limit",
-          stop: "DELETE /seo-investment/stop",
-        },
-        lifecycle: {
-          products: "GET /lifecycle/products",
-          keywords: "GET /lifecycle/keywords/:productId",
-          update: "POST /lifecycle/update",
-          stage: "POST /lifecycle/products/:productId/stage",
-          aggregation: "POST /lifecycle/aggregation",
-          config: "GET /lifecycle/config",
-        },
-        admin_api: {
-          negative_suggestions: {
-            list: "GET /admin/negative-suggestions",
-            summary: "GET /admin/negative-suggestions/summary",
-            detail: "GET /admin/negative-suggestions/:suggestionId",
-            approve: "POST /admin/negative-suggestions/approve",
-            reject: "POST /admin/negative-suggestions/reject",
-            apply_queued: "POST /admin/negative-suggestions/apply-queued (placeholder)",
-          },
-          executions: {
-            list: "GET /admin/executions",
-            asin_summary: "GET /admin/executions/:executionId/asin-summary",
-            keyword_details: "GET /admin/executions/:executionId/keyword-details",
-          },
-        },
-        debug: {
-          run_auto_exact_shadow:
-            "GET /debug/run-auto-exact-shadow?profileId=xxx&asin=yyy",
-        },
-        backtest: {
-          run: "POST /backtest/run",
-          executions: "GET /backtest/executions",
-          execution_detail: "GET /backtest/executions/:executionId",
-          export: "GET /backtest/executions/:executionId/export",
-          setup: "POST /backtest/setup",
-          weekly: "POST /backtest/weekly",
-        },
-        ab_test: {
-          tests: "GET /ab-test/tests",
-          tests_running: "GET /ab-test/tests/running",
-          test_detail: "GET /ab-test/tests/:testId",
-          create_test: "POST /ab-test/tests",
-          update_test: "PATCH /ab-test/tests/:testId",
-          start_test: "POST /ab-test/tests/:testId/start",
-          pause_test: "POST /ab-test/tests/:testId/pause",
-          complete_test: "POST /ab-test/tests/:testId/complete",
-          cancel_test: "POST /ab-test/tests/:testId/cancel",
-          assignments: "GET /ab-test/tests/:testId/assignments",
-          metrics: "GET /ab-test/tests/:testId/metrics",
-          metrics_aggregate: "GET /ab-test/tests/:testId/metrics/aggregate",
-          evaluate: "POST /ab-test/tests/:testId/evaluate",
-          evaluations: "GET /ab-test/tests/:testId/evaluations",
-          evaluations_latest: "GET /ab-test/tests/:testId/evaluations/latest",
-          setup: "POST /ab-test/setup",
-        },
-      },
-    });
+    const version = `v${packageJson.version}`;
+    const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amazon 広告自動入札ツール</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans CJK JP", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 48px;
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+    }
+    h1 {
+      color: #1a202c;
+      font-size: 2rem;
+      margin-bottom: 24px;
+      font-weight: 700;
+    }
+    .description {
+      color: #4a5568;
+      font-size: 1.1rem;
+      line-height: 1.8;
+      margin-bottom: 32px;
+    }
+    .version {
+      display: inline-block;
+      background: #edf2f7;
+      color: #4a5568;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      margin-bottom: 32px;
+    }
+    .admin-link {
+      display: inline-block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      padding: 14px 32px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .admin-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    }
+    .footer {
+      margin-top: 32px;
+      color: #a0aec0;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Amazon 広告自動入札ツール</h1>
+    <p class="description">
+      Amazon広告のキーワード入札を自動最適化するツールです。<br>
+      ACOSやライフサイクルに基づいた入札推奨を生成し、<br>
+      広告パフォーマンスの向上を支援します。
+    </p>
+    <div class="version">Version: ${version}</div>
+    <div>
+      <a href="/admin-panel" class="admin-link">管理画面を開く</a>
+    </div>
+    <p class="footer">
+      API ヘルスチェック: <a href="/health" style="color: #667eea;">/health</a>
+    </p>
+  </div>
+</body>
+</html>`;
+    res.status(200).type("html").send(html);
   });
 
   // ===========================================================================

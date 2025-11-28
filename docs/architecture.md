@@ -47,6 +47,7 @@
 39. [ロール×ライフサイクル別ガードレール（roleGuardrails）](#39-ロールライフサイクル別ガードレールroleguardrails)
 40. [管理画面（AdminJS）](#40-管理画面adminjs)
 41. [サーバー起動フロー](#41-サーバー起動フロー)
+42. [トップページ](#42-トップページ)
 
 ---
 
@@ -8924,6 +8925,55 @@ Cloud Run では同じ `src/server.ts` をエントリポイントとして使�
 # Dockerfile
 CMD ["node", "dist/src/server.js"]
 ```
+
+---
+
+## 42. トップページ
+
+### 概要
+
+`GET /` エンドポイントでは、ブラウザ向けのHTMLトップページを提供する。
+ツールの概要説明、バージョン情報、管理画面へのリンクを表示するランディングページとして機能する。
+
+### 実装
+
+`src/server.ts` 内で直接定義されており、テンプレートエンジンを使用せずインラインHTMLで実装している。
+
+```typescript
+// src/server.ts
+
+// package.json からバージョン情報を取得
+const packageJson = require("../../package.json") as { version: string };
+
+// ルートエンドポイント - HTMLトップページ
+app.get("/", (req: Request, res: Response) => {
+  const version = `v${packageJson.version}`;
+  const html = `<!DOCTYPE html>...`;  // インラインHTML
+  res.status(200).type("html").send(html);
+});
+```
+
+### 表示内容
+
+| 要素 | 説明 |
+|------|------|
+| タイトル | Amazon 広告自動入札ツール |
+| 説明文 | ツールの概要（2〜3行） |
+| バージョン | `package.json` の `version` フィールドから動的に取得 |
+| 管理画面リンク | `/admin-panel` へのリンクボタン |
+| ヘルスチェックリンク | `/health` へのリンク |
+
+### エンドポイント
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| GET | `/` | HTMLトップページを返す（認証不要） |
+
+### デザイン
+
+- レスポンシブ対応（モバイル・デスクトップ両対応）
+- CSSはインラインスタイルで完結（外部ファイル不要）
+- グラデーション背景とカードUIを採用
 
 ---
 
