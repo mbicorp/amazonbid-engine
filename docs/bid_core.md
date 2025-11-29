@@ -3649,6 +3649,75 @@ END AS is_anomaly_basic
 - `execution_health_anomalies`: 異常検出された実行のみ
 - `execution_health_daily_summary`: 日次集計
 
+### 16.8 監視ビュー UI
+
+Slackアラートに加え、`execution_health_recent` ビューを可視化するためのHTML監視ビューが提供されている。
+管理用トップページ（`/`）のカードリンクからもアクセス可能。
+
+**エンドポイント**: `GET /ui/monitoring`
+
+このビューでは BigQuery `execution_health_recent` ビューのデータを HTML テーブル形式で表示し、以下の操作が可能：
+
+- **フィルタリング**: `mode`（SHADOW/APPLY）、`anomaly`（all/anomalies）でフィルタ
+- **表示件数制御**: 20/50/100/200件から選択（デフォルト50件）
+- **異常検出表示**: `is_anomaly_basic` フラグに基づき、異常行をハイライト表示
+- **閾値超過の視覚化**: UP/DOWN比率 > 50%、GR適用比率 > 30%、失敗比率 > 20% 超過時は赤字表示
+- **サマリー統計**: テーブル上部に表示件数、異常検出数、APPLY/SHADOW件数を集計表示
+- **行アクションリンク**: 各行に「履歴」「推奨」ボタンを表示し、該当実行IDの詳細ビューへ直接遷移可能
+
+**エラーハンドリング**:
+
+実行履歴ビュー、推奨入札ビューと同様、BigQuery 認証エラーなどでデータ取得ができない場合でも、HTTP 500 ではなく **HTTP 200** でエラー内容を説明する HTML ページを返す。
+
+- 「監視データ取得中にエラーが発生しました」というメッセージを表示
+- 環境情報（`development` / `production`）を表示
+- 詳細エラーメッセージを表示
+- トップページへのリンクを提供
+
+**共通レイアウト**:
+
+監視ビューは `src/ui/layout.ts` の共通レイアウトモジュールを使用している。
+ヘッダー、フッター、ナビゲーションリンクが統一され、他のUIビュー（実行履歴、推奨入札）と一貫したデザインを提供する。
+
+**行アクションリンク**:
+
+各行の「リンク」列に、該当実行IDの詳細ビューへ直接遷移できるボタンが表示される：
+
+| ボタン | リンク先 | 説明 |
+|--------|----------|------|
+| 履歴 | `/ui/executions?executionId={id}` | 実行履歴ビューで該当実行のレコードを確認 |
+| 推奨 | `/ui/recommendations?executionId={id}` | 推奨入札ビューで該当実行の推奨を確認 |
+
+これにより、監視ビューから各実行の詳細を素早くドリルダウンして確認できる。
+
+**プリセットリンク**:
+
+監視ビューでは、よく使うフィルター条件をワンクリックで適用できるプリセットリンクを表示する。
+
+| プリセット名 | URL |
+|-------------|-----|
+| APPLY 異常のみ 50件 | `/ui/monitoring?mode=APPLY&anomaly=anomalies&limit=50` |
+| 全モード異常のみ 50件 | `/ui/monitoring?anomaly=anomalies&limit=50` |
+| APPLY 全件 100件 | `/ui/monitoring?mode=APPLY&limit=100` |
+| SHADOW 全件 100件 | `/ui/monitoring?mode=SHADOW&limit=100` |
+| 全モード 200件 | `/ui/monitoring?limit=200` |
+
+**グローバルアラート**:
+
+すべての管理UIビューには、システム全体の異常状態を通知するアラートバーが表示される。`src/ui/globalAlert.ts` モジュールが以下の異常を検出する：
+
+| 優先度 | 検出対象 | アラートレベル | 説明 |
+|--------|----------|---------------|------|
+| 1 | `loss_budget_7d` / `loss_budget_30d` | danger | `investment_state = 'BREACH'` のレコードが存在 |
+| 2 | `execution_health_recent` | warning | 直近24時間で `is_anomaly_basic = TRUE` のレコードが存在 |
+
+実装ファイル:
+- `src/ui/monitoringView.ts` - 監視ビューのレンダリングロジック
+- `src/ui/layout.ts` - 共通レイアウトモジュール
+- `src/ui/globalAlert.ts` - グローバルアラート検出モジュール
+
+詳細は `docs/architecture.md` の「45. 監視ビュー」および「46. 管理UI共通レイアウト」セクションを参照。
+
 ---
 
 ## 17. キーワード自動発見 (keywordDiscovery/)
@@ -7125,6 +7194,28 @@ launch_invest_usage_ratio,     -- extraAdCost_launch_real / LaunchInvest_total_d
 loss_budget_consumption_launch
 ```
 
+#### loss_budget_30d
+
+30日間ローリングウィンドウでの予算・損失モニタリングビュー。AdminJS管理画面で表示するために、`asin_rolling_30d_summary`をベースにカラム名を標準化。
+
+```sql
+-- src/bigquery/schemas/loss_budget_30d.sql
+-- 主要カラム
+asin, period_start, period_end, lifecycle_stage,
+sales_30d, ad_cost_30d,
+net_profit_real_30d, net_profit_target_30d,
+loss_gap_30d, loss_budget_allowed_30d, loss_budget_consumption_30d,
+investment_state,  -- SAFE/WATCH/LIMIT/BREACH
+tacos_30d, acos_30d
+```
+
+| investment_state | 消費率 | 説明 |
+|------------------|--------|------|
+| SAFE | < 50% | 安全域、許容損失に余裕あり |
+| WATCH | 50-80% | 注意域、消費率が増加傾向 |
+| LIMIT | 80-100% | 上限接近、損失抑制が必要 |
+| BREACH | >= 100% | 超過、許容損失を超えている |
+
 ### 34.15 LaunchInvest計算式
 
 ```
@@ -8754,6 +8845,159 @@ AdminJS による product_config の編集は、カスタム BigQuery アダプ�
 - `bid_recommendations` - 入札推奨履歴
 - `loss_budget_7d` - 直近7日間の累積損益サマリー
 - `negative_candidates_shadow` - ネガティブキーワード候補（SHADOW）
+
+#### 実行履歴ビュー（UIエンドポイント）
+
+AdminJS 以外にも、実行履歴を確認するための専用HTMLビューが用意されている。
+管理用トップページ（`/`）のカードリンクからもアクセス可能。
+
+**エンドポイント**: `GET /ui/executions`
+
+このビューでは BigQuery `executions` テーブルのデータを HTML テーブル形式で表示し、以下の操作が可能：
+
+- **フィルタリング**: `mode`（SHADOW/APPLY）、`status`（SUCCESS/FAILED/PARTIAL）でフィルタ
+- **表示件数制御**: 20/50/100/200件から選択（デフォルト50件）
+- **ステータス色分け**: SUCCESS（緑）、FAILED（赤）、PARTIAL（オレンジ）
+
+**エラーハンドリング**:
+
+BigQuery 認証エラーなどでデータ取得ができない場合でも、HTTP 500 ではなく **HTTP 200** でエラー内容を説明する HTML ページを返す。
+
+- 「BigQuery 接続エラーの可能性があります」というメッセージを表示
+- 環境情報（`development` / `production`）を表示
+- 詳細エラーメッセージを表示（例: `Could not load the default credentials ...`）
+- トップページへのリンクを提供
+
+これにより、開発環境や一時的な認証不備の状況でも、運用者は「BigQuery 側の問題でデータが取得できていない」ことを UI 上で認識できる。
+
+実装ファイル: `src/ui/executionsView.ts`
+
+詳細は `docs/architecture.md` の「43. 実行履歴ビュー」セクションを参照。
+
+#### 推奨入札ビュー（UIエンドポイント）
+
+キーワード単位の入札推奨結果を確認するための専用HTMLビューが用意されている。
+管理用トップページ（`/`）のカードリンクからもアクセス可能。
+
+**エンドポイント**: `GET /ui/recommendations`
+
+このビューでは BigQuery `keyword_recommendations_log` テーブルのデータを HTML テーブル形式で表示し、以下の操作が可能：
+
+- **フィルタリング**: `applied`（all/applied/pending）、`reason`（reason_codeで部分一致）、`executionId`（execution_idで部分一致）でフィルタ
+- **表示件数制御**: 20/50/100/200件から選択（デフォルト50件）
+- **変動額の色分け**: プラス（緑）、マイナス（赤）
+- **大幅変動行ハイライト**: 変動率50%以上（`|bid_change| / old_bid >= 0.5`）の行を黄色ボーダーでハイライト表示
+- **ステータスバッジ**: 適用状態を視覚的に表示（適用済: 緑バッジ、未適用: グレーバッジ）
+- **ソート**: 推奨日時の降順、同日時内は変動額の絶対値降順（影響度の高いキーワードから表示）
+
+**エラーハンドリング**:
+
+実行履歴ビューと同様、BigQuery 認証エラーなどでデータ取得ができない場合でも、HTTP 500 ではなく **HTTP 200** でエラー内容を説明する HTML ページを返す。
+
+- 「BigQuery 接続エラーの可能性があります」というメッセージを表示
+- 環境情報（`development` / `production`）を表示
+- 詳細エラーメッセージを表示
+- トップページへのリンクを提供
+
+実装ファイル: `src/ui/recommendationsView.ts`
+
+詳細は `docs/architecture.md` の「44. 推奨入札ビュー」セクションを参照。
+
+#### SHADOW評価ビュー（UIエンドポイント）
+
+SHADOWモードで提案された入札が事後的に正しかったか評価するための専用HTMLビュー。
+
+**エンドポイント**: `GET /ui/shadow-eval`
+
+このビューでは BigQuery `shadow_eval_keyword_7d` ビューのデータを HTML テーブル形式で表示し、以下の機能を提供：
+
+- **方向別精度サマリー**: UP/DOWN/KEEP 各方向の精度（正解率）をカード表示
+- **フィルタリング**: `executionId`、`lifecycleStage`、`direction` でフィルタ
+- **外れのみ表示**: `was_good_decision=FALSE` の行のみ表示
+- **判定ハイライト**: 「外れ」の行は赤背景、「正解」の行は緑背景
+
+**was_good_decision 判定ロジック**:
+
+| 方向 | 正解条件 |
+|------|---------|
+| UP | 売上が推奨時より10%以上増加、またはACOSがtarget_acos以下 |
+| DOWN | コストが推奨時より10%以上減少、またはACOSが推奨時より10%以上改善 |
+| KEEP | ACOSの変動が推奨時から±15%以内 |
+
+実装ファイル:
+- `src/bigquery/schemas/shadow_eval_keyword_7d.sql`
+- `src/admin/repositories/shadowEvalRepo.ts`
+- `src/ui/shadowEvalView.ts`
+
+詳細は `docs/architecture.md` の「47. SHADOW評価ビュー」セクションを参照。
+
+#### 運用オペフローページ（UIエンドポイント）
+
+日次オペレーションの手順をステップ形式で表示するガイドページ。
+
+**エンドポイント**: `GET /ui/ops-playbook`
+
+このページでは以下の運用フローを提供：
+
+1. **朝の確認作業**（毎日 9:00〜10:00 推奨）
+   - グローバルアラートの確認
+   - 実行ログの確認
+   - 監視ダッシュボードの確認
+
+2. **入札レビュー作業**
+   - 推奨入札の確認（強い変更、未適用）
+   - SHADOW評価の確認（週次）
+
+3. **予算・損失管理**
+   - 予算損失モニタの確認（BREACH状態のASIN特定）
+
+各ステップには対応する監視画面へのリンクとチェックリストが含まれる。
+
+実装ファイル: `src/ui/opsPlaybookView.ts`
+
+詳細は `docs/architecture.md` の「48. 運用オペフローページ」セクションを参照。
+
+#### トップページサマリー機能
+
+トップページのカードに「要対応タスク数」をバッジ表示する機能。
+
+| バッジ | 表示条件 | 表示先カード |
+|--------|---------|-------------|
+| オレンジ（warning） | 強い変更かつ未適用の件数 > 0 | 推奨入札ビュー |
+| 赤（danger） | BREACH状態のASIN件数 > 0 | 予算・損失モニタ |
+
+実装ファイル: `src/ui/topSummary.ts`
+
+詳細は `docs/architecture.md` の「49. トップページサマリー」セクションを参照。
+
+#### SHADOW日次サマリービュー（UIエンドポイント）
+
+SHADOWモードの入札提案を日次単位で集約し、「当たり/外れ率」を俯瞰するための専用HTMLビュー。
+
+**エンドポイント**: `GET /ui/daily-shadow-summary`
+
+このビューでは BigQuery `daily_shadow_summary` ビューのデータを HTML テーブル形式で表示し、以下の機能を提供：
+
+- **日次サマリーテーブル**: 日付ごとの実行回数・提案件数・外れ件数・外れ率を一覧表示
+- **AI用サマリーテキスト**: 最新日のサマリーをAI（ChatGPT, Claude等）に貼り付けられるテキスト形式で生成
+- **外れ率ハイライト**: 40%以上は赤字、25%以上はオレンジ字で強調
+- **期間フィルタ**: 20/30/60日の表示期間を選択可能
+
+**SHADOWモード検証での活用**:
+
+SHADOWモードの検証フェーズでは、`shadow_eval_keyword_7d` の生データだけでなく、`daily_shadow_summary` の日次集計を使って以下を確認する：
+
+- 外した提案の割合（日ごとの推移）
+- 日ごとの揺れ（特定の日だけ外れ率が高い場合は外部要因の可能性）
+
+運用者は `/ui/shadow-eval`（個別行）と `/ui/daily-shadow-summary`（日次集計）を併用して、「どの条件の提案が危ないか」を把握し、閾値調整に活用する。
+
+実装ファイル:
+- `src/bigquery/schemas/daily_shadow_summary.sql`
+- `src/bigquery/dailyShadowSummaryRepo.ts`
+- `src/ui/dailyShadowSummaryView.ts`
+
+詳細は `docs/architecture.md` の「50. SHADOW日次サマリー」セクションを参照。
 
 ---
 

@@ -137,6 +137,34 @@ const lossBudgetResource = new BigQueryResource({
 });
 
 /**
+ * loss_budget_30d リソース（読み取り専用）
+ * 30日間ローリングウィンドウでの予算・損失モニタ
+ */
+const lossBudget30dResource = new BigQueryResource({
+  tableName: "loss_budget_30d",
+  datasetName: "amazon_bid_engine",
+  idField: "asin",
+  editableFields: [],
+  properties: [
+    { name: "asin", type: "string", isId: true, isTitle: true },
+    { name: "period_start", type: "date" },
+    { name: "period_end", type: "date" },
+    { name: "lifecycle_stage", type: "string" },
+    { name: "sales_30d", type: "number" },
+    { name: "ad_cost_30d", type: "number" },
+    { name: "net_profit_real_30d", type: "number" },
+    { name: "net_profit_target_30d", type: "number" },
+    { name: "loss_gap_30d", type: "number" },
+    { name: "loss_budget_allowed_30d", type: "number" },
+    { name: "loss_budget_consumption_30d", type: "number" },
+    { name: "investment_state", type: "string" },
+    { name: "tacos_30d", type: "number" },
+    { name: "acos_30d", type: "number" },
+    { name: "calculated_at", type: "datetime" },
+  ],
+});
+
+/**
  * negative_candidates_shadow リソース（読み取り専用）
  * ※ analytics_views データセットから参照
  */
@@ -203,6 +231,7 @@ export function registerAdmin(app: express.Application): void {
           executions: "実行ログ",
           bid_recommendations: "入札提案ログ",
           loss_budget_7d: "予算・損失モニタ（7日）",
+          loss_budget_30d: "予算・損失モニタ（30日）",
           negative_candidates_shadow: "ネガ候補（シャドウ）",
         },
         resources: {
@@ -274,6 +303,25 @@ export function registerAdmin(app: express.Application): void {
               rolling_loss_7d: "7日間損失",
               rolling_budget_7d: "7日間予算",
               rolling_ratio: "7日間消化率",
+              calculated_at: "計算日時",
+            },
+          },
+          loss_budget_30d: {
+            properties: {
+              asin: "ASIN",
+              period_start: "期間開始",
+              period_end: "期間終了",
+              lifecycle_stage: "ライフサイクル",
+              sales_30d: "30日間売上",
+              ad_cost_30d: "30日間広告費",
+              net_profit_real_30d: "実績利益（30日）",
+              net_profit_target_30d: "目標利益（30日）",
+              loss_gap_30d: "損失ギャップ（30日）",
+              loss_budget_allowed_30d: "許容損失（30日）",
+              loss_budget_consumption_30d: "損失消費率（30日）",
+              investment_state: "投資状態",
+              tacos_30d: "TACOS（30日）",
+              acos_30d: "ACOS（30日）",
               calculated_at: "計算日時",
             },
           },
@@ -383,7 +431,7 @@ export function registerAdmin(app: express.Application): void {
           },
         },
       },
-      // 予算・損失モニタ（読み取り専用）
+      // 予算・損失モニタ 7日（読み取り専用）
       {
         resource: lossBudgetResource,
         options: {
@@ -395,6 +443,26 @@ export function registerAdmin(app: express.Application): void {
           listProperties: ["asin", "loss_budget", "loss_so_far", "rolling_loss_7d", "investment_state", "calculated_at"],
           filterProperties: ["profile_id", "asin", "investment_state"],
           showProperties: ["asin", "profile_id", "loss_budget", "loss_so_far", "ratio_stage", "investment_state", "rolling_loss_7d", "rolling_budget_7d", "rolling_ratio", "calculated_at"],
+          actions: {
+            new: { isAccessible: false },
+            edit: { isAccessible: false },
+            delete: { isAccessible: false },
+            bulkDelete: { isAccessible: false },
+          },
+        },
+      },
+      // 予算・損失モニタ 30日（読み取り専用）
+      {
+        resource: lossBudget30dResource,
+        options: {
+          id: "loss_budget_30d",
+          navigation: {
+            name: "モニタリング",
+            icon: "Calendar",
+          },
+          listProperties: ["asin", "lifecycle_stage", "sales_30d", "ad_cost_30d", "loss_budget_consumption_30d", "investment_state", "calculated_at"],
+          filterProperties: ["asin", "lifecycle_stage", "investment_state"],
+          showProperties: ["asin", "period_start", "period_end", "lifecycle_stage", "sales_30d", "ad_cost_30d", "net_profit_real_30d", "net_profit_target_30d", "loss_gap_30d", "loss_budget_allowed_30d", "loss_budget_consumption_30d", "investment_state", "tacos_30d", "acos_30d", "calculated_at"],
           actions: {
             new: { isAccessible: false },
             edit: { isAccessible: false },
@@ -472,6 +540,6 @@ export function registerAdmin(app: express.Application): void {
 
   logger.info("AdminJS admin panel registered", {
     rootPath: admin.options.rootPath,
-    resources: 5,
+    resources: 6,
   });
 }

@@ -48,6 +48,14 @@
 40. [管理画面（AdminJS）](#40-管理画面adminjs)
 41. [サーバー起動フロー](#41-サーバー起動フロー)
 42. [トップページ](#42-トップページ)
+43. [実行履歴ビュー](#43-実行履歴ビュー)
+44. [推奨入札ビュー](#44-推奨入札ビュー)
+45. [監視ビュー](#45-監視ビュー)
+46. [管理UI共通レイアウト](#46-管理ui共通レイアウト)
+47. [SHADOW評価ビュー](#47-shadow評価ビュー)
+48. [運用オペフローページ](#48-運用オペフローページ)
+49. [トップページサマリー](#49-トップページサマリー)
+50. [SHADOW日次サマリー](#50-shadow日次サマリー)
 
 ---
 
@@ -7201,6 +7209,26 @@ launch_invest_usage_ratio,     -- extraAdCost_launch_real / LaunchInvest_total_d
 loss_budget_consumption_launch
 ```
 
+#### loss_budget_30d
+
+30日間ローリングウィンドウでの予算・損失モニタリングビュー。`asin_rolling_30d_summary`をベースに、AdminJS表示用にカラム名を標準化し、投資状態（investment_state）を計算。
+
+```sql
+-- 主要カラム
+asin, period_start, period_end, lifecycle_stage,
+sales_30d, ad_cost_30d,
+net_profit_real_30d, net_profit_target_30d,
+loss_gap_30d, loss_budget_allowed_30d, loss_budget_consumption_30d,
+investment_state,  -- SAFE/WATCH/LIMIT/BREACH
+tacos_30d, acos_30d
+```
+
+**投資状態（investment_state）の判定**:
+- **SAFE**: 消費率 < 50%（安全）
+- **WATCH**: 消費率 50-80%（注意）
+- **LIMIT**: 消費率 80-100%（上限接近）
+- **BREACH**: 消費率 >= 100%（超過）
+
 ### 32.5 LaunchInvest計算式
 
 ```
@@ -8666,6 +8694,7 @@ if (!result.isAllowed) {
 | executions | 実行ログ | × | amazon_bid_engine |
 | recommendations | 入札提案ログ | × | amazon_bid_engine |
 | loss_budget_7d | 予算・損失モニタ（7日） | × | amazon_bid_engine |
+| loss_budget_30d | 予算・損失モニタ（30日） | × | amazon_bid_engine |
 | negative_candidates_shadow | ネガ候補（シャドウ） | × | analytics_views |
 
 ### product_config 編集可能列
@@ -8932,8 +8961,8 @@ CMD ["node", "dist/src/server.js"]
 
 ### 概要
 
-`GET /` エンドポイントでは、ブラウザ向けのHTMLトップページを提供する。
-ツールの概要説明、バージョン情報、管理画面へのリンクを表示するランディングページとして機能する。
+`GET /` エンドポイントでは、管理用のインデックスページを提供する。
+入札ロジックの実行状況確認や管理ツールへのアクセスを一元化したトップページとして機能する。
 
 ### 実装
 
@@ -8945,9 +8974,10 @@ CMD ["node", "dist/src/server.js"]
 // package.json からバージョン情報を取得
 const packageJson = require("../../package.json") as { version: string };
 
-// ルートエンドポイント - HTMLトップページ
+// ルートエンドポイント - HTMLトップページ（管理用インデックス）
 app.get("/", (req: Request, res: Response) => {
-  const version = `v${packageJson.version}`;
+  const version = packageJson.version;
+  const environment = process.env.NODE_ENV || "development";
   const html = `<!DOCTYPE html>...`;  // インラインHTML
   res.status(200).type("html").send(html);
 });
@@ -8957,11 +8987,36 @@ app.get("/", (req: Request, res: Response) => {
 
 | 要素 | 説明 |
 |------|------|
-| タイトル | Amazon 広告自動入札ツール |
-| 説明文 | ツールの概要（2〜3行） |
-| バージョン | `package.json` の `version` フィールドから動的に取得 |
-| 管理画面リンク | `/admin-panel` へのリンクボタン |
-| ヘルスチェックリンク | `/health` へのリンク |
+| タイトル | Amazon自動入札エンジン 管理ページ |
+| サブタイトル | 入札ロジックの実行状況を確認し、管理ツールにアクセスするためのトップページ |
+| バージョン | `package.json` の `version` フィールドから動的に取得（例: `v1.0.0`） |
+| 環境 | `NODE_ENV` の値を表示（例: `development` / `production`） |
+
+### カード形式リンク
+
+トップページには以下の8つのリンクがカード形式で配置されている：
+
+| カード | パス | 説明 |
+|--------|------|------|
+| オペフロー | `/ui/ops-playbook` | 日次オペレーションの手順とチェックリスト。まずはここから確認を始める |
+| 推奨入札ビュー | `/ui/recommendations?strongOnly=1&pendingOnly=1` | 推奨入札結果を一覧で確認。強い変更かつ未適用の件数をバッジ表示 |
+| 予算・損失モニタ | `/admin-panel/resources/loss_budget_7d` | ASIN別の予算消化状況と損失を確認。BREACH状態のASIN件数をバッジ表示 |
+| 実行履歴ビュー | `/ui/executions` | バッチ実行状況や成否、処理件数などを一覧で確認 |
+| 監視ビュー | `/ui/monitoring` | 入札エンジン実行ごとの健康状態と異常検出状況を一覧する監視用ビュー |
+| SHADOW評価 | `/ui/shadow-eval` | SHADOWモードの入札提案が事後的に正しかったか評価 |
+| 管理画面 AdminJS | `/admin-panel` | 広告アカウントや設定値をブラウザ上から管理するための画面 |
+| ヘルスチェック | `/health` | Cloud Runやスケジューラからの死活監視に使うエンドポイント |
+
+### 要対応タスク数バッジ
+
+トップページの一部カードには、要対応タスク数をバッジ形式で表示する機能がある。
+
+| バッジ | カード | 条件 |
+|--------|--------|------|
+| 警告（オレンジ） | 推奨入札ビュー | 強い変更（変動率50%以上）かつ未適用の推奨入札件数 |
+| 危険（赤） | 予算・損失モニタ | BREACH状態のASIN件数（7日・30日の合計ユニーク数） |
+
+バッジのデータは `src/ui/topSummary.ts` の `fetchTopSummary()` で取得される。
 
 ### エンドポイント
 
@@ -8971,9 +9026,1124 @@ app.get("/", (req: Request, res: Response) => {
 
 ### デザイン
 
-- レスポンシブ対応（モバイル・デスクトップ両対応）
+- ダークテーマ（グラデーション背景: `#0f172a` → `#1d3557`）
+- レスポンシブ対応（`grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))`）
+- カードUIを採用（ホバー時にボーダーがハイライト）
 - CSSはインラインスタイルで完結（外部ファイル不要）
-- グラデーション背景とカードUIを採用
+
+---
+
+## 43. 実行履歴ビュー
+
+### 概要
+
+`GET /ui/executions` エンドポイントでは、BigQuery `executions` テーブルのデータをHTML形式で表示する。
+エンジン実行履歴を一覧で確認でき、フィルタリング機能も提供する。
+
+**アクセス方法**: トップページ（`/`）のカードリンクからもアクセス可能。
+
+**画面説明テキスト**: 「入札エンジンの実行ログとモードの履歴を確認できます。」
+
+### 実装ファイル
+
+- `src/ui/executionsView.ts` - ビューのレンダリングロジック
+- `src/ui/layout.ts` - 共通レイアウトモジュール（46章参照）
+
+```typescript
+// src/ui/executionsView.ts
+
+import { renderLayout, buildErrorContent, escapeHtml } from "./layout";
+
+export async function renderExecutionsView(req: Request, res: Response): Promise<void> {
+  const env = process.env.NODE_ENV || "development";
+
+  // クエリパラメータを取得
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
+  const filters: ExecutionFilter = {};
+  if (req.query.mode) filters.mode = req.query.mode as string;
+  if (req.query.status) filters.status = req.query.status as string;
+
+  // BigQueryから実行履歴を取得
+  const { records, total } = await listExecutions(limit, 0, filters);
+
+  // コンテンツを生成
+  const contentHtml = buildExecutionsContent(records, total, limit, filters);
+
+  // 共通レイアウトでレンダリング
+  const html = renderLayout({
+    title: "実行履歴ビュー",
+    subtitle: "入札エンジンの実行状況を確認します。",
+    env,
+    contentHtml,
+    extraStyles: executionsExtraStyles,
+  });
+
+  res.status(200).type("html").send(html);
+}
+```
+
+### エンドポイント
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| GET | `/ui/executions` | 実行履歴一覧を表示（認証不要） |
+
+### クエリパラメータ
+
+| パラメータ | 型 | デフォルト | 最大値 | 説明 |
+|-----------|------|----------|-------|------|
+| `limit` | number | 50 | 200 | 取得件数 |
+| `mode` | string | - | - | 実行モードでフィルタ（SHADOW/APPLY） |
+| `status` | string | - | - | ステータスでフィルタ（SUCCESS/FAILED/PARTIAL/RUNNING） |
+| `executionId` | string | - | - | execution_idでフィルタ（完全一致） |
+
+### フィルタ情報バナー
+
+`executionId` クエリパラメータが指定されている場合、ページ上部に青い情報バナーが表示される：
+
+- 「実行IDでフィルタ中: {executionId}」というラベル
+- 「フィルタを解除」リンクで `/ui/executions` へ遷移可能
+
+これにより、監視ビューからのリンクで特定実行の履歴のみを絞り込んで確認できる。
+
+### 表示項目
+
+| 項目 | 説明 |
+|------|------|
+| 実行ID | execution_id（先頭8文字のみ表示、クリックで推奨入札ビューへリンク） |
+| 開始日時 | started_at（日本時間） |
+| 終了日時 | ended_at（日本時間） |
+| 所要時間 | duration_ms（ms/s/m形式で表示） |
+| モード | SHADOW/APPLY |
+| ステータス | SUCCESS/FAILED/PARTIAL/RUNNING |
+| 総KW数 | total_keywords |
+| 推奨数 | reco_count |
+| UP | action_up |
+| DOWN | action_down |
+| KEEP | action_keep |
+| エラー | error_message（省略表示） |
+
+### ステータス表示
+
+| ステータス | 色 | 説明 |
+|-----------|------|------|
+| SUCCESS | 緑 | 正常完了 |
+| FAILED | 赤 | エラー終了 |
+| PARTIAL | オレンジ | 部分的に成功 |
+| RUNNING | 青 | 実行中 |
+
+### エラーハンドリング
+
+BigQuery への接続やクエリに失敗した場合でも、`/ui/executions` は **HTTP 500 ではなく HTTP 200** でエラー説明用の HTML ページを返す。
+
+**エラーページの表示内容**:
+- 「現在、実行履歴を取得できません。BigQuery 接続エラーの可能性があります。」というメッセージ
+- 環境情報（`NODE_ENV` の値、例: `development` / `production`）
+- 詳細エラーメッセージ（例: `Could not load the default credentials ...`）
+- トップページへのリンク
+
+**設計方針**:
+- スタックトレースはブラウザに表示しない（ログには記録）
+- サーバーはクラッシュせず、運用者が状況を把握しやすい UI を返す
+- 開発環境や BigQuery 認証未設定の状態でもツール全体が落ちない
+
+```typescript
+// エラー時の処理（src/ui/executionsView.ts）
+catch (error) {
+  logger.error("Failed to render executions view", { error, stack });
+
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const contentHtml = buildErrorContent(
+    errorMessage,
+    "実行履歴の取得中にエラーが発生しました。BigQuery 接続エラーの可能性があります。"
+  );
+
+  // 共通レイアウトでエラーページをレンダリング（HTTP 200）
+  const html = renderLayout({
+    title: "実行履歴ビュー エラー",
+    env,
+    contentHtml,
+  });
+
+  res.status(200).type("html").send(html);  // HTTP 200 で返す
+}
+```
+
+### デザイン
+
+- レスポンシブ対応（テーブルは横スクロール可能）
+- フィルターフォームはページ上部に配置
+- 「トップページ」「管理画面」へのナビゲーションリンクを提供
+- FAILEDステータスの行は背景色を変更して視認性を向上
+
+---
+
+## 44. 推奨入札ビュー
+
+### 概要
+
+`GET /ui/recommendations` エンドポイントでは、BigQuery `keyword_recommendations_log` テーブルのデータをHTML形式で表示する。
+キーワード単位の入札推奨結果を一覧で確認でき、影響度の高いキーワードから優先的にチェックできる。
+
+**アクセス方法**: トップページ（`/`）のカードリンクからもアクセス可能。
+
+**画面説明テキスト**: 「選択した実行IDの推奨入札結果とステータスを確認できます。」
+
+### 実装ファイル
+
+- `src/ui/recommendationsView.ts` - ビューのレンダリングロジック
+- `src/ui/layout.ts` - 共通レイアウトモジュール（46章参照）
+
+```typescript
+// src/ui/recommendationsView.ts
+
+import { renderLayout, buildErrorContent, escapeHtml } from "./layout";
+
+export async function renderRecommendationsView(req: Request, res: Response): Promise<void> {
+  const env = process.env.NODE_ENV || "development";
+
+  // クエリパラメータを取得
+  const filters = parseFilterParams(req);
+
+  // BigQueryからレコメンデーションを取得
+  const { records, total } = await listRecommendations(filters);
+
+  // コンテンツを生成
+  const contentHtml = buildRecommendationsContent(records, total, filters);
+
+  // 共通レイアウトでレンダリング
+  const html = renderLayout({
+    title: "推奨入札ビュー",
+    subtitle: "入札エンジンの推奨入札結果を確認します。",
+    env,
+    contentHtml,
+    extraStyles: recommendationsExtraStyles,
+  });
+
+  res.status(200).type("html").send(html);
+}
+```
+
+### フィルタ情報バナー
+
+`executionId` クエリパラメータが指定されている場合、ページ上部に青い情報バナーが表示される：
+
+- 「実行IDでフィルタ中: {executionId}」というラベル
+- 「フィルタを解除」リンクで `/ui/recommendations` へ遷移可能
+
+これにより、実行履歴ビューや監視ビューからのリンクで特定実行の推奨入札のみを絞り込んで確認できる。
+
+### エンドポイント
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| GET | `/ui/recommendations` | 推奨入札一覧を表示（認証不要） |
+
+### クエリパラメータ
+
+| パラメータ | 型 | デフォルト | 最大値 | 説明 |
+|-----------|------|----------|-------|------|
+| `limit` | number | 50 | 200 | 取得件数（20/50/100/200から選択） |
+| `applied` | string | all | - | 適用状態でフィルタ（all/applied/pending） |
+| `reason` | string | - | - | reason_codeでフィルタ（部分一致） |
+| `executionId` | string | - | - | execution_idでフィルタ（完全一致） |
+| `strongOnly` | string | - | - | `1`の場合、大幅変動（±50%以上）のレコードのみ表示 |
+| `pendingOnly` | string | - | - | `1`の場合、未適用（is_applied = false）のレコードのみ表示 |
+
+### クイックフィルタボタン
+
+フォームの下にクイックフィルタボタンが表示される。URLパラメータを使用したクライアントサイドフィルタリングを提供する：
+
+| ボタン | パラメータ | 動作 |
+|--------|-----------|------|
+| 強い変更のみ | `strongOnly=1` | 入札変動率が ±50% 以上のレコードのみ表示 |
+| PENDINGのみ | `pendingOnly=1` | 未適用（is_applied = false）のレコードのみ表示 |
+
+**動作仕様**:
+- トグル動作：有効状態でクリックするとパラメータを外して無効化
+- 複数同時有効：両フィルタを AND 条件で組み合わせ可能
+- 有効時は `rec-quick-filter-btn-active` クラスが付与されハイライト表示
+
+```html
+<div class="rec-quick-filters">
+  <a href="/ui/recommendations?strongOnly=1" class="rec-quick-filter-btn">強い変更のみ</a>
+  <a href="/ui/recommendations?pendingOnly=1" class="rec-quick-filter-btn rec-quick-filter-btn-active">PENDINGのみ</a>
+</div>
+```
+
+**サマリー表示**:
+クイックフィルタ適用時は「全 X 件中 Y 件取得、クイックフィルタ適用後 Z 件表示」のように表示される。
+
+### 表示項目
+
+| 項目 | 説明 |
+|------|------|
+| 推奨日時 | recommended_at（日本時間） |
+| 実行ID | execution_id（先頭8文字のみ表示） |
+| ASIN | 商品のASIN |
+| キーワード | keyword_text |
+| マッチタイプ | match_type（BROAD/PHRASE/EXACT） |
+| 旧Bid | old_bid |
+| 新Bid | new_bid |
+| 変動額 | bid_change（プラス: 緑、マイナス: 赤） |
+| 目標ACOS | target_acos（%表示） |
+| 現在ACOS | current_acos（%表示） |
+| ACOS Gap | acos_gap（目標との差分） |
+| 理由 | reason_code |
+| ステート | lifecycle_state |
+| IMP 7d | impressions_7d |
+| Click 7d | clicks_7d |
+| CV 7d | conversions_7d |
+| 売上 7d | sales_7d |
+| CVR 7d | cvr_7d（%表示） |
+| 適用済 | is_applied（Yes/No） |
+
+### ソート順
+
+データは以下の優先順でソートされる：
+
+1. `recommended_at DESC` - 新しい推奨が先頭
+2. `ABS(bid_change) DESC` - 変動額の大きいものを優先
+
+これにより、直近の実行で影響度の高いキーワードから確認できる。
+
+### エラーハンドリング
+
+BigQuery への接続やクエリに失敗した場合でも、`/ui/recommendations` は **HTTP 500 ではなく HTTP 200** でエラー説明用の HTML ページを返す。
+
+**エラーページの表示内容**:
+- 「現在、推奨入札データを取得できません。BigQuery 接続エラーの可能性があります。」というメッセージ
+- 環境情報（`NODE_ENV` の値、例: `development` / `production`）
+- 詳細エラーメッセージ
+- トップページへのリンク
+
+**設計方針**:
+- `src/ui/executionsView.ts` と同様のエラーハンドリングパターンを採用
+- スタックトレースはブラウザに表示しない（ログには記録）
+- サーバーはクラッシュせず、運用者が状況を把握しやすい UI を返す
+
+```typescript
+// エラー時の処理（src/ui/recommendationsView.ts）
+catch (error) {
+  logger.error("Failed to render recommendations view", { error, stack });
+
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const environment = process.env.NODE_ENV || "development";
+
+  const errorHtml = generateErrorHtml(errorMessage, environment);
+  res.status(200).type("html").send(errorHtml);  // HTTP 200 で返す
+}
+```
+
+### デザイン
+
+- レスポンシブ対応（テーブルは横スクロール可能）
+- フィルターフォームはページ上部に配置
+- 「トップページ」「管理画面」へのナビゲーションリンクを提供
+- 適用済み行は緑背景（`.applied-row`）
+- bid_change がプラスの場合は緑、マイナスの場合は赤で表示
+
+#### 大幅変動行のハイライト
+
+入札額の変動率が50%以上（`|bid_change| / old_bid >= 0.5`）の行は、黄色の左ボーダーとクリーム色背景でハイライト表示される：
+
+```css
+tr.recommendation-strong {
+  border-left: 4px solid #ecc94b;
+  background: #fffff0;
+}
+```
+
+これにより、運用者が注視すべき大幅な入札変更を一目で識別できる。
+
+#### ステータスバッジ
+
+適用状態は共通レイアウトの `.status-badge` クラスで表示：
+
+| ステータス | CSSクラス | 表示 | 色 |
+|------------|-----------|------|-----|
+| 適用済 | `.status-badge-applied` | 適用済 | 緑背景 |
+| 未適用 | `.status-badge-pending` | 未適用 | グレー背景 |
+
+```html
+<span class="status-badge status-badge-applied">適用済</span>
+<span class="status-badge status-badge-pending">未適用</span>
+```
+
+### BigQueryテーブル
+
+`keyword_recommendations_log` テーブルから以下のカラムを取得：
+
+```sql
+SELECT
+  CAST(recommended_at AS STRING) as recommended_at,
+  execution_id,
+  asin,
+  keyword_text,
+  match_type,
+  old_bid,
+  new_bid,
+  (new_bid - old_bid) as bid_change,
+  target_acos,
+  current_acos,
+  (current_acos - target_acos) as acos_gap,
+  reason_code,
+  lifecycle_state,
+  impressions_7d,
+  clicks_7d,
+  conversions_7d,
+  sales_7d,
+  cvr_7d,
+  is_applied,
+  CAST(applied_at AS STRING) as applied_at
+FROM `{project}.{dataset}.keyword_recommendations_log`
+ORDER BY recommended_at DESC, ABS(new_bid - old_bid) DESC
+LIMIT @limit
+```
+
+---
+
+## 45. 監視ビュー
+
+### 概要
+
+`GET /ui/monitoring` エンドポイントでは、BigQuery `execution_health_recent` ビューに基づく実行ヘルス指標をHTML形式で表示する。
+入札ロジック暴走や異常状態をSlackのアラートだけでなく、UIからも俯瞰できるようにするための監視用ビュー。
+
+**アクセス方法**: トップページ（`/`）のカードリンクからもアクセス可能。
+
+**画面説明テキスト**: 「入札エンジンの健全性指標と異常検知結果を確認できます。」
+
+### 実装ファイル
+
+- `src/ui/monitoringView.ts` - ビューのレンダリングロジック
+- `src/ui/layout.ts` - 共通レイアウトモジュール（46章参照）
+
+```typescript
+// src/ui/monitoringView.ts
+
+import { renderLayout, buildErrorContent, escapeHtml } from "./layout";
+
+export async function renderMonitoringView(req: Request, res: Response): Promise<void> {
+  const env = process.env.NODE_ENV || "development";
+
+  // クエリパラメータをパース
+  const filters = parseMonitoringFilterParams(req);
+
+  // BigQueryから監視データを取得
+  const { records, total } = await listExecutionHealth(filters);
+
+  // コンテンツを生成
+  const contentHtml = buildMonitoringContent(records, total, filters);
+
+  // 共通レイアウトでレンダリング
+  const html = renderLayout({
+    title: "監視ビュー",
+    subtitle: "入札エンジンの実行ヘルス指標を確認します。",
+    env,
+    contentHtml,
+    extraStyles: monitoringExtraStyles,
+  });
+
+  res.status(200).type("html").send(html);
+}
+```
+
+### エンドポイント
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| GET | `/ui/monitoring` | 監視ビューを表示（認証不要） |
+
+### データソース
+
+- **メインビュー**: `execution_health_recent`（直近100件の実行ヘルス指標）
+- **異常検出フラグ**: `is_anomaly_basic` を使用して異常実行を識別
+
+### クエリパラメータ
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|------|----------|------|
+| `limit` | number | 50 | 取得件数（20/50/100/200から選択） |
+| `mode` | string | - | 実行モードでフィルタ（SHADOW/APPLY）。未指定時は両方表示 |
+| `anomaly` | string | all | 異常フィルタ（all: 全行、anomalies: is_anomaly_basic = true のみ） |
+
+### 表示項目
+
+| 項目 | 説明 |
+|------|------|
+| 実行日時 | execution_time（日本時間） |
+| 実行ID | execution_id（先頭8文字のみ表示、クリックで推奨入札ビューへリンク） |
+| モード | SHADOW/APPLY |
+| GR Mode | guardrails_mode（OFF/SHADOW/ENFORCE） |
+| 総KW | total_keywords |
+| 推奨 | total_recommendations |
+| 適用 | total_applied |
+| 失敗 | total_apply_failed |
+| 強UP | strong_up_count（+50%超の大幅UP件数） |
+| 強DOWN | strong_down_count（-30%超の大幅DOWN件数） |
+| UP率 | up_ratio（%表示、50%超で赤字） |
+| DOWN率 | down_ratio（%表示、50%超で赤字） |
+| GR適用率 | guardrails_clipped_ratio（%表示、30%超で赤字） |
+| 失敗率 | apply_failed_ratio（%表示、20%超で赤字） |
+| 平均変動 | avg_bid_change_ratio |
+| 最大変動 | max_bid_change_ratio |
+| 状態 | is_anomaly_basic（異常/正常バッジ） |
+| リンク | 該当実行IDの履歴・推奨入札ビューへのショートカットボタン |
+
+### 行アクションリンク
+
+各行には該当する実行IDの詳細ビューへ直接遷移できるリンクボタンが表示される：
+
+| ボタン | リンク先 | 説明 |
+|--------|----------|------|
+| 履歴 | `/ui/executions?executionId={id}` | 実行履歴ビューで該当実行IDのレコードを表示 |
+| 推奨 | `/ui/recommendations?executionId={id}` | 推奨入札ビューで該当実行IDの推奨を表示 |
+
+```html
+<td>
+  <div class="ex-row-actions">
+    <a href="/ui/executions?executionId=xxx" class="ex-row-action-btn ex-row-action-exec">履歴</a>
+    <a href="/ui/recommendations?executionId=xxx" class="ex-row-action-btn ex-row-action-reco">推奨</a>
+  </div>
+</td>
+```
+
+### サマリー統計
+
+テーブル上部には現在表示中のデータに基づくサマリー統計が表示される：
+
+| 項目 | 説明 |
+|------|------|
+| 表示件数 | 現在の表示件数 / 全件数（例: 50 / 120） |
+| 異常検出 | 表示中のレコードで `is_anomaly_basic = TRUE` の件数（1件以上で赤字） |
+| APPLY | 表示中のレコードで `mode = "APPLY"` の件数（紫色で表示） |
+| SHADOW | 表示中のレコードで `mode = "SHADOW"` の件数（グレーで表示） |
+
+```html
+<div class="monitoring-summary">
+  <div class="monitoring-summary-item">
+    <span class="label">表示件数:</span>
+    <span class="value">50 / 120</span>
+  </div>
+  <div class="monitoring-summary-item">
+    <span class="label">異常検出:</span>
+    <span class="value anomaly">3件</span>
+  </div>
+  ...
+</div>
+```
+
+### 異常判定閾値
+
+| 指標 | 閾値 | 説明 |
+|------|------|------|
+| UP比率 | > 50% | UP比率が閾値超過 |
+| DOWN比率 | > 50% | DOWN比率が閾値超過 |
+| ガードレール適用比率 | > 30% | ガードレール適用比率が閾値超過 |
+| APPLY失敗比率 | > 20% | APPLY失敗比率が閾値超過 |
+
+いずれかの閾値を超えると `is_anomaly_basic = TRUE` となり、行がハイライト表示される。
+
+### エラーハンドリング
+
+BigQuery への接続やクエリに失敗した場合でも、`/ui/monitoring` は **HTTP 500 ではなく HTTP 200** でエラー説明用の HTML ページを返す。
+
+**エラーページの表示内容**:
+- 「監視データ取得中にエラーが発生しました。BigQuery 接続エラーや権限エラーの可能性があります。」というメッセージ
+- 環境情報（`NODE_ENV` の値、例: `development` / `production`）
+- 詳細エラーメッセージ
+- トップページへのリンク
+
+**設計方針**:
+- `src/ui/executionsView.ts`、`src/ui/recommendationsView.ts` と同様のエラーハンドリングパターンを採用
+- スタックトレースはブラウザに表示しない（ログには記録）
+- サーバーはクラッシュせず、運用者が状況を把握しやすい UI を返す
+
+### デザイン
+
+- レスポンシブ対応（テーブルは横スクロール可能）
+- フィルターフォームはページ上部に配置
+- 「トップページ」「実行履歴」「推奨入札」「管理画面」へのナビゲーションリンクを提供
+- 異常行（is_anomaly_basic = true）は背景色を赤系でハイライト
+- 閾値超過している比率は赤字で表示
+- 凡例として閾値の説明をテーブル上部に表示
+
+### BigQueryビュー
+
+`execution_health_recent` ビューから以下のカラムを取得：
+
+```sql
+SELECT
+  execution_id,
+  CAST(execution_time AS STRING) as execution_time,
+  mode,
+  guardrails_mode,
+  total_keywords,
+  total_recommendations,
+  total_applied,
+  total_apply_failed,
+  strong_up_count,
+  strong_down_count,
+  up_ratio,
+  down_ratio,
+  guardrails_clipped_ratio,
+  apply_failed_ratio,
+  avg_bid_change_ratio,
+  max_bid_change_ratio,
+  is_anomaly_basic
+FROM `{project}.{dataset}.execution_health_recent`
+WHERE [conditions based on filters]
+ORDER BY execution_time DESC
+LIMIT @limit
+```
+
+---
+
+## 46. 管理UI共通レイアウト
+
+### 概要
+
+管理UIビュー（実行履歴、推奨入札、監視）で統一されたヘッダー・フッター・スタイルを提供する共通レイアウトモジュール。
+コードの重複を排除し、一貫したUIを実現する。
+
+### 実装ファイル
+
+- `src/ui/layout.ts` - 共通レイアウトモジュール
+
+### エクスポート関数
+
+| 関数 | 説明 |
+|------|------|
+| `renderLayout(options: LayoutOptions): string` | 共通ヘッダー・フッター付きの完全なHTMLページを生成 |
+| `buildErrorContent(errorMessage, description): string` | エラー表示用のHTMLコンテンツを生成 |
+| `escapeHtml(str): string` | HTMLエスケープ処理 |
+
+### LayoutOptions インターフェース
+
+```typescript
+interface LayoutOptions {
+  /** ページタイトル（h1に表示） */
+  title: string;
+  /** ページサブタイトル（任意） */
+  subtitle?: string;
+  /** 環境名（development/production） */
+  env: string;
+  /** ページ固有のコンテンツHTML */
+  contentHtml: string;
+  /** ページ固有の追加CSS（任意） */
+  extraStyles?: string;
+  /** 現在のページパス（ナビゲーションバーのアクティブ判定用） */
+  currentPath?: string;
+  /** グローバルアラート（任意） */
+  globalAlert?: GlobalAlert | null;
+}
+```
+
+### 共通レイアウト構成
+
+```
+┌──────────────────────────────────────────────────┐
+│  ヘッダー                                         │
+│  ┌──────────────────┬────────────────────────┐  │
+│  │ タイトル          │ 環境バッジ + ナビリンク │  │
+│  │ サブタイトル      │                        │  │
+│  └──────────────────┴────────────────────────┘  │
+├──────────────────────────────────────────────────┤
+│  ナビゲーションバー（タブ形式）                    │
+│  [実行履歴] [推奨入札] [監視ビュー]       [Admin] │
+│  ※ currentPath と一致するタブがアクティブ表示     │
+├──────────────────────────────────────────────────┤
+│  グローバルアラートバー（globalAlertがある場合のみ） │
+│  [warning/danger] メッセージ + リンク             │
+├──────────────────────────────────────────────────┤
+│  メインコンテンツ（contentHtml）                   │
+│  ・フィルター                                     │
+│  ・サマリー                                       │
+│  ・テーブル（スティッキーヘッダー対応）             │
+├──────────────────────────────────────────────────┤
+│  フッター                                         │
+│  「Amazon広告自動入札エンジン 管理UI」             │
+└──────────────────────────────────────────────────┘
+```
+
+### ナビゲーションバー
+
+ヘッダー下にタブ形式のナビゲーションバーが表示される。`currentPath` オプションを指定すると、該当するタブがアクティブ状態で表示される。
+
+| タブ | パス | CSSクラス |
+|------|------|-----------|
+| 実行履歴 | `/ui/executions` | `.layout-nav-item` |
+| 推奨入札 | `/ui/recommendations` | `.layout-nav-item` |
+| 監視ビュー | `/ui/monitoring` | `.layout-nav-item` |
+| Admin | `/admin-panel` | `.layout-nav-item .layout-nav-admin` |
+
+#### ナビゲーションCSSクラス
+
+| クラス | 説明 |
+|--------|------|
+| `.layout-nav` | ナビゲーションバーコンテナ |
+| `.layout-nav-item` | 各タブ共通スタイル |
+| `.layout-nav-item-active` | アクティブタブ（下線付き、強調色） |
+| `.layout-nav-admin` | Adminタブ専用スタイル（右寄せ、紫色） |
+
+### ヘッダー内ナビゲーションリンク
+
+ヘッダー右側には以下のナビゲーションリンクも表示される：
+
+| リンク | パス |
+|--------|------|
+| トップ | `/` |
+| 実行履歴 | `/ui/executions` |
+| 推奨入札 | `/ui/recommendations` |
+| 監視 | `/ui/monitoring` |
+| 管理画面 | `/admin-panel` |
+
+### 環境バッジ
+
+| 環境 | バッジ色 |
+|------|---------|
+| `production` | 赤（#e53e3e） |
+| `development` | 緑（#38a169） |
+
+### 共通CSSスタイル
+
+レイアウトには以下の共通スタイルが含まれる：
+
+- レスポンシブ対応のフレックスボックスレイアウト
+- ナビゲーションバー用スタイル（`.layout-nav`, `.layout-nav-item`, `.layout-nav-item-active`, `.layout-nav-admin`）
+- フィルターフォーム用スタイル（`.filters`）
+- テーブル用スタイル（`.table-wrapper`, `table`, `.data-table`）
+- サマリー表示用スタイル（`.summary`）
+- 空状態表示用スタイル（`.empty-state`）
+- エラー表示用スタイル（`.error-content`）
+- 実行IDリンク用スタイル（`.execution-id-link`）
+- フィルタ情報バナー用スタイル（`.filter-info`）
+- 監視サマリー用スタイル（`.monitoring-summary`, `.monitoring-summary-item`）
+- 大幅変動行ハイライト用スタイル（`tr.recommendation-strong`）
+- ステータスバッジ用スタイル（`.status-badge`, `.status-badge-applied`, `.status-badge-pending`, `.status-badge-failed`）
+- グローバルアラート用スタイル（`.global-alert`, `.global-alert-info`, `.global-alert-warning`, `.global-alert-danger`）
+- 監視プリセットリンク用スタイル（`.monitoring-presets`, `.monitoring-presets-label`, `.monitoring-preset-link`）
+
+### テーブルスタイル改善
+
+テーブルには以下の機能が適用されている：
+
+| 機能 | CSSクラス/スタイル | 説明 |
+|------|-------------------|------|
+| スティッキーヘッダー | `th { position: sticky; top: 0; }` | スクロール時もヘッダー行が固定表示 |
+| 行ホバー | `tr:hover { background: #edf2f7; }` | マウスオーバーで行をハイライト |
+| 数値右揃え | `.numeric { text-align: right; }` | 数値カラムを右揃えで表示 |
+| 縦スクロール | `.table-wrapper { max-height: 70vh; overflow-y: auto; }` | 大量データ時の縦スクロール |
+
+各ビューのテーブルには `class="data-table"` を付与し、数値カラムのヘッダーには `class="numeric"` を付与する。
+
+### 画面説明テキスト
+
+各ビューのコンテンツ先頭には、その画面の目的を示す1行の説明テキストを表示する。
+
+| CSSクラス | 説明 |
+|-----------|------|
+| `.view-description` | 画面説明テキスト用スタイル（薄いグレー、余白付き） |
+
+| ビュー | 説明テキスト |
+|--------|-------------|
+| 実行履歴 | 「入札エンジンの実行ログとモードの履歴を確認できます。」 |
+| 推奨入札 | 「選択した実行IDの推奨入札結果とステータスを確認できます。」 |
+| 監視 | 「入札エンジンの健全性指標と異常検知結果を確認できます。」 |
+
+### 空状態メッセージ
+
+BigQuery クエリ結果が 0 件の場合、テーブルの代わりに空状態メッセージを表示する。
+これにより、運用者は「データがない状態」と「エラー状態」をUI上で明確に区別できる。
+
+| CSSクラス | 説明 |
+|-----------|------|
+| `.empty-state` | 空状態メッセージ用スタイル（淡いグレー背景、枠線、中央揃え） |
+
+**共通メッセージ**: 「該当するデータはありません（フィルタ条件や期間を見直してください）。」
+
+表示構造:
+```
+[画面説明テキスト]
+[フィルタフォーム]
+[サマリー（0件表示）]
+[空状態メッセージ]  ← テーブルの代わりに表示
+```
+
+### グローバルアラート
+
+すべての管理UIビューにシステム全体の異常状態を通知するアラートバーを表示する機能。
+
+#### 実装ファイル
+
+- `src/ui/globalAlert.ts` - グローバルアラート検出モジュール
+
+#### GlobalAlert インターフェース
+
+```typescript
+interface GlobalAlert {
+  /** アラートレベル */
+  level: "info" | "warning" | "danger";
+  /** メッセージ */
+  message: string;
+  /** リンク先URL（任意） */
+  linkHref?: string;
+  /** リンクラベル（任意） */
+  linkLabel?: string;
+}
+```
+
+#### 検出ロジック
+
+`fetchGlobalAlert()` は以下の順序で異常を検出し、最も深刻なアラートを返す：
+
+| 優先度 | 検出対象 | アラートレベル | 説明 |
+|--------|----------|---------------|------|
+| 1 | `loss_budget_7d` / `loss_budget_30d` | danger | `investment_state = 'BREACH'` のレコードが存在 |
+| 2 | `execution_health_recent` | warning | 直近24時間で `is_anomaly_basic = TRUE` のレコードが存在 |
+
+#### CSSクラス
+
+| クラス | 説明 |
+|--------|------|
+| `.global-alert` | アラートバー共通スタイル |
+| `.global-alert-info` | 情報レベル（青系） |
+| `.global-alert-warning` | 警告レベル（黄系） |
+| `.global-alert-danger` | 危険レベル（赤系） |
+
+#### 表示位置
+
+アラートバーはナビゲーションバーの直下、メインコンテンツの直上に表示される。
+
+### 監視ビュープリセットリンク
+
+監視ビューには、よく使うフィルター条件をワンクリックで適用できるプリセットリンクを表示する。
+
+#### プリセット一覧
+
+| プリセット名 | URL |
+|-------------|-----|
+| APPLY 異常のみ 50件 | `/ui/monitoring?mode=APPLY&anomaly=anomalies&limit=50` |
+| 全モード異常のみ 50件 | `/ui/monitoring?anomaly=anomalies&limit=50` |
+| APPLY 全件 100件 | `/ui/monitoring?mode=APPLY&limit=100` |
+| SHADOW 全件 100件 | `/ui/monitoring?mode=SHADOW&limit=100` |
+| 全モード 200件 | `/ui/monitoring?limit=200` |
+
+#### CSSクラス
+
+| クラス | 説明 |
+|--------|------|
+| `.monitoring-presets` | プリセットリンクコンテナ |
+| `.monitoring-presets-label` | 「クイックプリセット:」ラベル |
+| `.monitoring-preset-link` | 各プリセットリンク（ピル型ボタン） |
+
+### 使用例
+
+```typescript
+import { renderLayout, buildErrorContent, escapeHtml } from "./layout";
+import { fetchGlobalAlert } from "./globalAlert";
+
+// グローバルアラートを取得
+const globalAlert = await fetchGlobalAlert();
+
+// 正常時
+const html = renderLayout({
+  title: "実行履歴ビュー",
+  subtitle: "入札エンジンの実行状況を確認します。",
+  env: process.env.NODE_ENV || "development",
+  contentHtml: buildExecutionsContent(records, total, limit, filters),
+  extraStyles: executionsExtraStyles,
+  currentPath: "/ui/executions",  // ナビゲーションバーでこのタブがアクティブ表示
+  globalAlert,  // グローバルアラート（異常があれば表示）
+});
+
+// エラー時
+const html = renderLayout({
+  title: "実行履歴ビュー エラー",
+  env,
+  contentHtml: buildErrorContent(errorMessage, "BigQuery 接続エラーの可能性があります。"),
+  currentPath: "/ui/executions",
+  globalAlert,
+});
+```
+
+### 各ビューの extraStyles
+
+各ビューはページ固有のCSSを `extraStyles` で追加できる：
+
+| ビュー | 固有スタイル |
+|--------|-------------|
+| 実行履歴 | `.status-badge`, `.mode-badge`, `.error-row` |
+| 推奨入札 | `.applied-row`, `.reason-badge`, `.applied-badge`, `.pending-badge` |
+| 監視 | `.anomaly-row`, `.mode-apply`, `.mode-shadow`, `.status-anomaly`, `.status-normal`, `.legend` |
+| SHADOW評価 | `.bad-decision-row`, `.good-decision-row`, `.direction-badge`, `.decision-badge`, `.accuracy-card` |
+| オペフロー | `.playbook-step`, `.playbook-checklist`, `.playbook-note` |
+
+### ナビゲーションバータブ（更新）
+
+| タブ | パス | 説明 |
+|------|------|------|
+| 実行履歴 | `/ui/executions` | バッチ実行ログ |
+| 推奨入札 | `/ui/recommendations` | 推奨入札一覧 |
+| 監視ビュー | `/ui/monitoring` | ヘルス監視 |
+| SHADOW評価 | `/ui/shadow-eval` | SHADOW提案の事後評価 |
+| オペフロー | `/ui/ops-playbook` | 日次運用手順 |
+| Admin | `/admin-panel` | AdminJS管理画面 |
+
+---
+
+## 47. SHADOW評価ビュー
+
+### 概要
+
+SHADOWモードで提案された入札が事後的に正しかったかを評価するビュー。
+`shadow_eval_keyword_7d` BigQueryビューからデータを取得し、方向別（UP/DOWN/KEEP）の精度を可視化する。
+
+### 実装ファイル
+
+- `src/bigquery/schemas/shadow_eval_keyword_7d.sql` - BigQueryビュー定義
+- `src/admin/repositories/shadowEvalRepo.ts` - リポジトリモジュール
+- `src/ui/shadowEvalView.ts` - UIビュー
+
+### エンドポイント
+
+| パス | メソッド | 説明 |
+|------|---------|------|
+| `/ui/shadow-eval` | GET | SHADOW評価ビュー表示 |
+
+### クエリパラメータ
+
+| パラメータ | 型 | 説明 |
+|-----------|-----|------|
+| `limit` | number | 表示件数（20/50/100/200） |
+| `executionId` | string | 実行IDでフィルタ |
+| `lifecycleStage` | string | ライフサイクルステージでフィルタ |
+| `onlyBad` | "1" | 外れ（was_good_decision=FALSE）のみ表示 |
+| `direction` | string | 方向でフィルタ（UP/DOWN/KEEP） |
+
+### was_good_decision 判定ロジック
+
+SHADOWモードの提案が「正解」だったかを以下のロジックで判定：
+
+| 方向 | 正解条件 |
+|------|---------|
+| UP | 売上が推奨時より10%以上増加、またはACOSがtarget_acos以下 |
+| DOWN | コストが推奨時より10%以上減少、またはACOSが推奨時より10%以上改善 |
+| KEEP | ACOSの変動が推奨時から±15%以内 |
+
+### UI構成
+
+```
+┌──────────────────────────────────────────────────────┐
+│  方向別精度サマリー                                    │
+│  [UP: 72%] [DOWN: 68%] [KEEP: 85%]                   │
+├──────────────────────────────────────────────────────┤
+│  フィルタ: [件数▼] [方向▼] [execution_id] [lifecycle] │
+│  [外れのみ表示]                                       │
+├──────────────────────────────────────────────────────┤
+│  テーブル（was_good_decision=FALSEの行は赤ハイライト） │
+│  実行ID | KW | ASIN | 推奨 | 実際 | 乖離 | 判定 ...   │
+└──────────────────────────────────────────────────────┘
+```
+
+### リポジトリ関数
+
+| 関数 | 説明 |
+|------|------|
+| `listShadowEval(params)` | SHADOW評価データ一覧を取得 |
+| `countShadowEval(params)` | SHADOW評価データの件数を取得 |
+| `getShadowEvalAccuracySummary()` | 方向別精度サマリーを取得 |
+
+---
+
+## 48. 運用オペフローページ
+
+### 概要
+
+日次オペレーションの手順をステップ形式で表示するガイドページ。
+各監視画面へのリンクを含め、運用者が効率的に確認作業を行えるようにする。
+
+### 実装ファイル
+
+- `src/ui/opsPlaybookView.ts` - オペフローページ
+
+### エンドポイント
+
+| パス | メソッド | 説明 |
+|------|---------|------|
+| `/ui/ops-playbook` | GET | オペフローページ表示 |
+
+### オペレーションステップ
+
+#### 朝の確認作業（毎日 9:00〜10:00 推奨）
+
+1. **グローバルアラートの確認** - 予算超過・実行異常の検出
+2. **実行ログの確認** - 直近24時間の実行状況
+3. **監視ダッシュボードの確認** - ヘルス状態と異常検知
+
+#### 入札レビュー作業
+
+4. **推奨入札の確認** - 強い変更、未適用の入札
+5. **SHADOW評価の確認**（週次） - 提案精度の分析
+
+#### 予算・損失管理
+
+6. **予算損失モニタの確認** - BREACH状態のASIN特定
+
+### UI構成
+
+```
+┌──────────────────────────────────────────────────────┐
+│  日次オペレーションガイド                              │
+│  ────────────────────────────                        │
+│  [1] グローバルアラートの確認                          │
+│      □ 予算損失BREACH状態のASINがないか確認           │
+│      → [トップページを開く]                           │
+│  ────────────────────────────                        │
+│  [2] 実行ログの確認                                   │
+│      □ 最新の実行が正常終了しているか確認             │
+│      → [実行ログを開く]                              │
+│  ...                                                 │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## 49. トップページサマリー
+
+### 概要
+
+トップページのカードに「要対応タスク数」をバッジ表示する機能。
+BigQueryから以下の件数を取得し、運用者が優先度を判断しやすくする。
+
+### 実装ファイル
+
+- `src/ui/topSummary.ts` - サマリー取得モジュール
+
+### TopSummary インターフェース
+
+```typescript
+interface TopSummary {
+  /** 強い変更かつ未適用の推奨入札件数 */
+  strongPendingCount: number;
+  /** BREACH状態のASIN件数（7日 + 30日） */
+  breachCount: number;
+}
+```
+
+### 取得ロジック
+
+| 項目 | 定義 | 表示先 |
+|------|------|--------|
+| strongPendingCount | `is_applied=FALSE` かつ `abs(bid_change)/old_bid >= 0.5` かつ直近7日間 | 推奨入札カード |
+| breachCount | `investment_state='BREACH'` のユニークASIN件数 | 予算・損失モニタカード |
+
+### バッジ表示
+
+| 件数 | バッジ |
+|------|--------|
+| 0件 | 非表示 |
+| 1件以上 | オレンジ（warning）or 赤（danger）のバッジ |
+
+### トップページカード構成（更新後）
+
+1. **オペフロー** - 日次手順の起点（最初に確認推奨）
+2. **推奨入札ビュー** - strongPendingCountバッジ付き
+3. **予算・損失モニタ** - breachCountバッジ付き
+4. **実行履歴ビュー**
+5. **監視ビュー**
+6. **SHADOW評価**
+7. **SHADOW日次サマリー** - 日次集計とAI分析用テキスト
+8. **管理画面 AdminJS**
+9. **ヘルスチェック**
+
+---
+
+## 50. SHADOW日次サマリー
+
+### 概要
+
+SHADOWモードの入札提案を日次単位で集約し、「当たり/外れ率」を把握するためのビューおよびUI。
+「今日の結果」や「直近N日間のSHADOWの当たり外れ」を俯瞰し、AIに貼り付けて分析できるテキストを生成する。
+
+### BigQueryビュー: daily_shadow_summary
+
+`shadow_eval_keyword_7d` ビューを日次単位で集約したビュー。
+
+#### カラム定義
+
+| カラム名 | 型 | 説明 |
+|---------|-----|------|
+| date | DATE | SHADOW提案の評価対象日 |
+| shadow_executions | INT64 | 当該日のSHADOWモード実行回数（DISTINCT execution_id） |
+| total_recommendations | INT64 | 評価対象となった提案件数 |
+| bad_recommendations | INT64 | was_good_decision = FALSE の件数 |
+| bad_rate | FLOAT64 | bad_recommendations / total_recommendations（0〜1） |
+
+#### SQL定義
+
+```sql
+SELECT
+  DATE(recommended_at) AS date,
+  COUNT(DISTINCT execution_id) AS shadow_executions,
+  COUNT(*) AS total_recommendations,
+  COUNTIF(was_good_decision = FALSE) AS bad_recommendations,
+  SAFE_DIVIDE(COUNTIF(was_good_decision = FALSE), COUNT(*)) AS bad_rate
+FROM shadow_eval_keyword_7d
+WHERE DATE(recommended_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+GROUP BY DATE(recommended_at)
+ORDER BY date DESC
+```
+
+### 実装ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `src/bigquery/schemas/daily_shadow_summary.sql` | BigQueryビュー定義 |
+| `src/bigquery/dailyShadowSummaryRepo.ts` | リポジトリモジュール |
+| `src/ui/dailyShadowSummaryView.ts` | UIビュー |
+
+### リポジトリ関数
+
+```typescript
+// 日次サマリーの一覧を取得
+async function listDailyShadowSummary(params: { limit?: number }): Promise<DailyShadowSummary[]>
+
+// 最新1日分のサマリーを取得
+async function getLatestDailyShadowSummary(): Promise<DailyShadowSummary | null>
+```
+
+### UI画面: /ui/daily-shadow-summary
+
+#### 画面構成
+
+1. **統計カード** - 最新日の実行回数・提案件数・外れ率を表示
+2. **AI用サマリーテキスト** - AIに貼り付けて分析できるテキストをtextareaで表示（コピーボタン付き）
+3. **日次サマリーテーブル** - 日付・実行回数・提案件数・外れ件数・外れ率を一覧表示
+4. **フィルタフォーム** - 表示日数（20/30/60日）を選択
+
+#### AI用サマリーテキスト例
+
+```
+直近の日次SHADOWサマリー（2025-11-29）: SHADOW実行 3回、推奨入札 120件、
+そのうち外した提案 18件（15.0%）。この結果をもとに、
+どのライフサイクルやキーワードタイプで閾値調整が必要か分析してください。
+```
+
+#### 外れ率ハイライト
+
+| 外れ率 | 表示スタイル |
+|--------|------------|
+| 40%以上 | 赤字・行ハイライト |
+| 25%以上 | オレンジ字 |
+| 25%未満 | 緑字 |
+
+### 想定用途
+
+- **日次モニタリング**: 毎日の外れ率を確認し、異常な日を特定
+- **AI分析との連携**: サマリーテキストをAI（ChatGPT, Claude等）に貼り付けて改善点を議論
+- **閾値チューニング**: 外れ率が高い場合、`/ui/shadow-eval`で詳細を確認し、判定閾値の調整を検討
 
 ---
 

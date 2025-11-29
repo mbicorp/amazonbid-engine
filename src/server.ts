@@ -35,6 +35,13 @@ import {
 } from "./routes";
 import { configureNotifications } from "./utils/notification";
 import { registerAdmin } from "./admin/admin";
+import { renderExecutionsView } from "./ui/executionsView";
+import { renderRecommendationsView } from "./ui/recommendationsView";
+import { renderMonitoringView } from "./ui/monitoringView";
+import { renderShadowEvalView } from "./ui/shadowEvalView";
+import { renderOpsPlaybookView } from "./ui/opsPlaybookView";
+import { renderDailyShadowSummaryView } from "./ui/dailyShadowSummaryView";
+import { fetchTopSummary } from "./ui/topSummary";
 
 // package.json からバージョン情報を取得
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -222,98 +229,206 @@ async function startServer(): Promise<void> {
     });
   });
 
-  // ルートエンドポイント - HTMLトップページ
-  app.get("/", (req: Request, res: Response) => {
-    const version = `v${packageJson.version}`;
+  // ルートエンドポイント - HTMLトップページ（管理用インデックス）
+  app.get("/", async (req: Request, res: Response) => {
+    const version = packageJson.version;
+    const environment = process.env.NODE_ENV || "development";
+
+    // 要対応タスク数を取得（エラー時は0件として扱う）
+    let topSummary = { strongPendingCount: 0, breachCount: 0 };
+    try {
+      topSummary = await fetchTopSummary();
+    } catch (error) {
+      logger.warn("Failed to fetch top summary", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    // バッジHTML生成関数
+    const buildBadge = (count: number, type: "warning" | "danger" | "info"): string => {
+      if (count === 0) return "";
+      return `<span class="top-card-badge top-card-badge-${type}">${count}</span>`;
+    };
+
     const html = `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Amazon 広告自動入札ツール</title>
+  <title>Amazon自動入札エンジン 管理ページ</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans CJK JP", sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans CJK JP", sans-serif;
+      background: linear-gradient(135deg, #0f172a, #1d3557);
+      color: #f9fafb;
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
     }
     .container {
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      padding: 48px;
-      max-width: 600px;
-      width: 100%;
-      text-align: center;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
     }
     h1 {
-      color: #1a202c;
-      font-size: 2rem;
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
       margin-bottom: 24px;
-      font-weight: 700;
+      opacity: 0.85;
     }
-    .description {
-      color: #4a5568;
-      font-size: 1.1rem;
-      line-height: 1.8;
-      margin-bottom: 32px;
+    .meta {
+      margin-bottom: 24px;
+      font-size: 14px;
+      opacity: 0.9;
     }
-    .version {
+    .meta span {
       display: inline-block;
-      background: #edf2f7;
-      color: #4a5568;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 0.9rem;
-      margin-bottom: 32px;
+      margin-right: 16px;
     }
-    .admin-link {
-      display: inline-block;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 12px;
+      padding: 16px 18px;
       text-decoration: none;
-      padding: 14px 32px;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: 600;
-      transition: transform 0.2s, box-shadow 0.2s;
+      color: inherit;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     }
-    .admin-link:hover {
+    .card:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.5);
+      border-color: #38bdf8;
     }
-    .footer {
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+    }
+    .card-desc {
+      font-size: 13px;
+      opacity: 0.9;
+    }
+    .top-card-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      margin-left: 8px;
+    }
+    .top-card-badge-warning {
+      background: #dd6b20;
+    }
+    .top-card-badge-danger {
+      background: #e53e3e;
+    }
+    .top-card-badge-info {
+      background: #3182ce;
+    }
+    footer {
       margin-top: 32px;
-      color: #a0aec0;
-      font-size: 0.85rem;
+      font-size: 12px;
+      opacity: 0.75;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Amazon 広告自動入札ツール</h1>
-    <p class="description">
-      Amazon広告のキーワード入札を自動最適化するツールです。<br>
-      ACOSやライフサイクルに基づいた入札推奨を生成し、<br>
-      広告パフォーマンスの向上を支援します。
-    </p>
-    <div class="version">Version: ${version}</div>
-    <div>
-      <a href="/admin-panel" class="admin-link">管理画面を開く</a>
+    <h1>Amazon自動入札エンジン 管理ページ</h1>
+    <p class="subtitle">入札ロジックの実行状況を確認し、管理ツールにアクセスするためのトップページです。</p>
+
+    <div class="meta">
+      <span>バージョン: v${version}</span>
+      <span>環境: ${environment}</span>
     </div>
-    <p class="footer">
-      API ヘルスチェック: <a href="/health" style="color: #667eea;">/health</a>
-    </p>
+
+    <div class="grid">
+      <a href="/ui/ops-playbook" class="card">
+        <div class="card-title">オペフロー</div>
+        <div class="card-desc">日次オペレーションの手順とチェックリスト。まずはここから確認を始めてください。</div>
+      </a>
+
+      <a href="/ui/recommendations?strongOnly=1&pendingOnly=1" class="card">
+        <div class="card-title">推奨入札ビュー${buildBadge(topSummary.strongPendingCount, "warning")}</div>
+        <div class="card-desc">推奨入札結果を一覧で確認するための画面です。強い変更かつ未適用の件数をバッジ表示。</div>
+      </a>
+
+      <a href="/admin-panel/resources/loss_budget_7d" class="card">
+        <div class="card-title">予算・損失モニタ${buildBadge(topSummary.breachCount, "danger")}</div>
+        <div class="card-desc">ASIN別の予算消化状況と損失を確認。BREACH状態のASIN件数をバッジ表示。</div>
+      </a>
+
+      <a href="/ui/executions" class="card">
+        <div class="card-title">実行履歴ビュー</div>
+        <div class="card-desc">バッチ実行状況や成否、処理件数などを一覧で確認します。</div>
+      </a>
+
+      <a href="/ui/monitoring" class="card">
+        <div class="card-title">監視ビュー</div>
+        <div class="card-desc">入札エンジン実行ごとの健康状態と異常検出状況を一覧する監視用ビューです。</div>
+      </a>
+
+      <a href="/ui/shadow-eval" class="card">
+        <div class="card-title">SHADOW評価</div>
+        <div class="card-desc">SHADOWモードの入札提案が事後的に正しかったか評価します。</div>
+      </a>
+
+      <a href="/ui/daily-shadow-summary" class="card">
+        <div class="card-title">SHADOW日次サマリー</div>
+        <div class="card-desc">SHADOWモードの提案の当たり外れを日次単位で集計し、AI分析用テキストも生成します。</div>
+      </a>
+
+      <a href="/admin-panel" class="card">
+        <div class="card-title">管理画面 AdminJS</div>
+        <div class="card-desc">広告アカウントや設定値をブラウザ上から管理するための画面です。</div>
+      </a>
+
+      <a href="/health" class="card">
+        <div class="card-title">ヘルスチェック</div>
+        <div class="card-desc">Cloud Runやスケジューラからの死活監視に使うエンドポイントです。</div>
+      </a>
+    </div>
+
+    <footer>
+      Amazon広告自動入札エンジン 管理UI
+    </footer>
   </div>
 </body>
 </html>`;
     res.status(200).type("html").send(html);
   });
+
+  // 実行履歴ビュー（UIエンドポイント、認証なし）
+  app.get("/ui/executions", renderExecutionsView);
+
+  // 推奨入札ビュー（UIエンドポイント、認証なし）
+  app.get("/ui/recommendations", renderRecommendationsView);
+
+  // 監視ビュー（UIエンドポイント、認証なし）
+  app.get("/ui/monitoring", renderMonitoringView);
+
+  // SHADOW評価ビュー（UIエンドポイント、認証なし）
+  app.get("/ui/shadow-eval", renderShadowEvalView);
+
+  // オペフローページ（UIエンドポイント、認証なし）
+  app.get("/ui/ops-playbook", renderOpsPlaybookView);
+
+  // SHADOW日次サマリービュー（UIエンドポイント、認証なし）
+  app.get("/ui/daily-shadow-summary", renderDailyShadowSummaryView);
 
   // ===========================================================================
   // 認証付きエンドポイント
